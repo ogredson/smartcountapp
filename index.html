@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ServeAuto SmartCount 1.0</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+</script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --info: #0891b2;
+            --light: #f8fafc;
+            --dark: #1e293b;
+            --background: #f1f5f9;
+            --card: #ffffff;
+            --text: #334155;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--background); color: var(--text); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
+        .container { max-width: 100%; padding: 0.5rem; margin: 0 auto; flex: 1; }
+        header { background-color: var(--primary); color: white; padding: 1rem; text-align: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+        .header-content { display: flex; flex-direction: column; align-items: center; }
+        .app-title { font-size: 1.5rem; font-weight: bold; margin-bottom: .5rem; }
+        .app-version { font-size: .8rem; opacity: .9; }
+        .user-info { margin-top: 0.5rem; font-size: 0.9rem; }
+        .nav-tabs { display: flex; background-color: var(--primary); overflow-x: auto; padding: 0 .5rem; scrollbar-width: none; position: sticky; top: 84px; z-index: 99; }
+        .nav-tabs::-webkit-scrollbar { display: none; }
+        .tab { padding: .8rem 1rem; color: rgba(255,255,255,.7); text-align: center; text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; cursor: pointer; font-weight: 500; }
+        .tab.active { color: #fff; border-bottom-color: #fff; }
+        .tab i { margin-right: .5rem; }
+        .tab-content { display: none; padding: 1rem; background-color: var(--card); border-radius: .5rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .tab-content.active { display: block; }
+        .card { background-color: var(--card); border-radius: .5rem; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .card-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; color: var(--dark); display: flex; align-items: center; }
+        .card-title i { margin-right: .5rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: .5rem; font-weight: 500; }
+        input, select, button { width: 100%; padding: .8rem; border: 1px solid #ddd; border-radius: .4rem; font-size: 1rem; }
+        button { background-color: var(--primary); color: #fff; border: none; cursor: pointer; font-weight: 600; transition: background-color .3s; display: flex; justify-content: center; align-items: center; }
+        button i { margin-right: .5rem; }
+        button:hover { background-color: #1d4ed8; }
+        button:disabled { background-color: var(--secondary); cursor: not-allowed; }
+        button.success { background-color: var(--success); }
+        button.success:hover { background-color: #15803d; }
+        button.danger { background-color: var(--danger); }
+        button.danger:hover { background-color: #b91c1c; }
+        button.warning { background-color: var(--warning); }
+        button.warning:hover { background-color: #b45309; }
+        .progress-bar { height: 1.5rem; background-color: #e5e7eb; border-radius: .75rem; overflow: hidden; margin: 1rem 0; position: relative; }
+        .progress-fill { height: 100%; background-color: var(--success); border-radius: .75rem; transition: width .3s ease; }
+        .progress-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dark); font-weight: 600; font-size: .9rem; }
+        .stats-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 1rem 0; }
+        .stat-box { background-color: var(--light); border-radius: .5rem; padding: 1rem; text-align: center; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+        .stat-label { font-size: .8rem; color: var(--secondary); }
+        .message-area { background-color: #fef3c7; border-left: 4px solid var(--warning); padding: 1rem; margin: 1rem 0; border-radius: .25rem; }
+        .message-area.error { background-color: #fee2e2; border-left-color: var(--danger); }
+        .message-area.success { background-color: #dcfce7; border-left-color: var(--success); }
+        .product-list { max-height: 400px; overflow-y: auto; }
+        .product-item { display: flex; justify-content: space-between; padding: .8rem; border-bottom: 1px solid #e5e7eb; }
+        .product-item:last-child { border-bottom: none; }
+        .product-code { font-weight: 600; color: var(--dark); }
+        .product-desc { color: var(--secondary); font-size: .9rem; margin: .2rem 0; }
+        .product-count { display: flex; align-items: center; }
+        .count-badge { background-color: var(--primary); color: #fff; border-radius: 1rem; padding: .2rem .6rem; font-size: .8rem; font-weight: 600; }
+        .hidden { display: none; }
+        .auth-container { max-width: 400px; margin: 2rem auto; padding: 2rem; background-color: var(--card); border-radius: .5rem; box-shadow: 0 4px 6px rgba(0,0,0,.1); }
+        .auth-tabs { display: flex; margin-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; }
+        .auth-tab { flex: 1; text-align: center; padding: .8rem; cursor: pointer; border-bottom: 3px solid transparent; }
+        .auth-tab.active { border-bottom-color: var(--primary); font-weight: 600; color: var(--primary); }
+        .footer { text-align: center; padding: 1.5rem; color: var(--secondary); font-size: .8rem; margin-top: auto; background-color: var(--light); }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Style para o grid de bipagem avulsa */
+        #avulsa-scans-card { max-height: 250px; overflow-y: auto; }
+        #avulsa-scans-list .scan-item { display: flex; justify-content: space-between; padding: .6rem; border-bottom: 1px solid #e5e7eb; }
+        #avulsa-scans-list .scan-item:last-child { border-bottom: none; }
+        #avulsa-scans-list .scan-code { font-weight: 600; }
+        #avulsa-scans-list .scan-qty { background-color: var(--secondary); color: white; padding: .2rem .5rem; border-radius: .3rem; font-size: .8rem; }
+        /* Indicador de Tipo de Contagem */
+        .count-type-indicator { 
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #0ea5e9;
+            border-radius: .5rem;
+            padding: .6rem 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            font-size: .9rem;
+            color: #0c4a6e;
+            box-shadow: 0 1px 3px rgba(14, 165, 233, 0.1);
+        }
+        .count-type-indicator i {
+            margin-right: .5rem;
+            color: #0ea5e9;
+        }
+        .count-type-indicator.arquivo {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-color: #22c55e;
+            color: #14532d;
+        }
+        .count-type-indicator.arquivo i {
+            color: #22c55e;
+        }
+        .count-type-indicator.avulsa {
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+            border-color: #eab308;
+            color: #713f12;
+        }
+        .count-type-indicator.avulsa i {
+            color: #eab308;
+        }
+        
+        /* Container do cabeçalho da sessão */
+        .session-header-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0.75rem 0 1.5rem 0;
+        }
+        
+        /* Nome da sessão atual */
+        .current-session-name {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 1px solid #fca5a5;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #dc2626;
+            text-align: center;
+            flex: 2;
+            margin: 0;
+            min-width: 0;
+        }
+        
+        /* Botão finalizar sessão */
+        .end-session-btn {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            flex: 1;
+            max-width: 90px;
+        }
+        .end-session-btn:hover {
+            background: linear-gradient(135deg, #b91c1c, #991b1b);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+        }
+        .end-session-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Container do campo quantidade com botão */
+        .quantity-input-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        .quantity-input-container input {
+            flex: 0 0 80px;
+            width: 80px;
+        }
+        .quantity-input-container button {
+            flex: 1;
+            white-space: nowrap;
+            min-width: 120px;
+            padding: 0.5rem 1rem;
+        }
+        
+        /* Informações da sessão ativa na aba produtos */
+        .session-info {
+            background: linear-gradient(135deg, #e0f2fe 0%, #b3e5fc 100%);
+            border: 1px solid #4fc3f7;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #0277bd;
+            text-align: center;
+        }
+        
+        .session-info.active-session {
+            background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+            border: 1px solid #66bb6a;
+            color: #2e7d32;
+        }
+        
+        .session-info strong {
+            font-weight: 700;
+        }
+        
+        /* Estilos para o grid de sessões */
+        #sessions-grid {
+            padding: 0;
+        }
+        .grid-header {
+            display: none; /* Ocultar cabeçalho da tabela */
+        }
+        #sessions-list {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr;
+        }
+        .session-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .session-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .session-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), #60a5fa);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            color: white;
+            font-size: 1.2rem;
+        }
+        .session-title {
+            flex: 1;
+        }
+        .session-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+        }
+        .session-subtitle {
+            font-size: 0.85rem;
+            color: var(--secondary);
+            margin: 0.25rem 0 0 0;
+        }
+        .session-stats {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-top: 1rem;
+             padding: 0.75rem;
+             background: #f8fafc;
+             border-radius: 8px;
+         }
+         .stat-item {
+             display: flex;
+             align-items: center;
+             gap: 0.5rem;
+         }
+         .stat-value {
+             font-size: 1.1rem;
+             font-weight: 700;
+             color: var(--primary);
+         }
+         .stat-label {
+             font-size: 0.85rem;
+             color: var(--secondary);
+         }
+        #no-sessions-msg {
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--secondary);
+            font-style: italic;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 2px dashed #e5e7eb;
+        }
+        
+        @media (max-width: 768px) {
+            .session-stats {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            .session-card {
+                padding: 1rem;
+            }
+            .session-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+            .session-name {
+                font-size: 1rem;
+            }
+            .stat-value {
+                font-size: 1.1rem;
+            }
+            .grid-row .grid-cell {
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .grid-cell:before {
+                content: attr(data-label) ': ';
+                font-weight: 600;
+                display: inline-block;
+                width: 120px;
+            }
+            .grid-header .grid-cell:before {
+                content: none;
+            }
+        }
+        
+        @media (min-width: 768px) { .container { max-width: 750px; padding: 1rem; } .stats-container { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 1024px) { .container { max-width: 980px; } }
+        @media (min-width: 1200px) { .container { max-width: 1140px; } }
+    
+/* ===== MENU HAMBÚRGUER ===== */
+.hamburger {
+  display: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  color: white;
+  z-index: 200;
+}
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -280px;
+  width: 260px;
+  height: 100%;
+  background: var(--dark);
+  color: white;
+  padding-top: 4rem;
+  transition: left 0.3s ease;
+  z-index: 150;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.4);
+}
+.sidebar.active {
+  left: 0;
+}
+.sidebar .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem;
+  font-size: 1.1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  text-decoration: none;
+  transition: background 0.3s;
+}
+.sidebar .menu-item i {
+  font-size: 1.4rem;
+  width: 24px;
+  text-align: center;
+}
+.sidebar .menu-item:hover {
+  background: var(--primary);
+}
+/* Overlay com animação */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.0);
+  z-index: 140;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+.overlay.active {
+  background: rgba(0,0,0,0.5);
+  opacity: 1;
+  visibility: visible;
+}
+@media (max-width:768px){
+  .nav-tabs{display:none;}
+  .hamburger{display:block;}
+}
+
+
+
+</style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="header-content">
+                <div class="app-title">ServeAuto SmartCount</div>
+                <div id="user-info" class="user-info hidden"></div>
+            </div>
+        </header>
+
+<div class="hamburger" id="hamburger"><i class="fas fa-bars"></i></div>
+
+<div class="sidebar" id="sidebar">
+  <a href="#" class="menu-item" data-tab="contagem">📋 <span>Contagem</span></a>
+  <a href="#" class="menu-item" data-tab="bipagem">📦 <span>Bipagem</span></a>
+  <a href="#" class="menu-item" data-tab="produtos">📦 <span>Produtos</span></a>
+  <a href="#" class="menu-item" id="sidebar-logout">🚪 <span>Sair</span></a>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+        <div id="auth-section" class="auth-container">
+            <div class="auth-tabs">
+                <div class="auth-tab active" id="login-tab">Login</div>
+                <div class="auth-tab" id="register-tab">Cadastro</div>
+            </div>
+
+            <div id="login-form">
+                <div class="form-group">
+                    <label for="email">E-mail</label>
+                    <input type="email" id="email" placeholder="Seu e-mail" />
+                </div>
+                <div class="form-group">
+                    <label for="password">Senha</label>
+                    <input type="password" id="password" placeholder="Sua senha" />
+                </div>
+                <button id="login-btn"><i class="fas fa-sign-in-alt"></i> Entrar</button>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <div class="form-group">
+                    <label for="reg-name">Nome Completo</label>
+                    <input type="text" id="reg-name" placeholder="Seu nome completo" />
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">E-mail</label>
+                    <input type="email" id="reg-email" placeholder="Seu e-mail" />
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Senha</label>
+                    <input type="password" id="reg-password" placeholder="Sua senha (mín. 6 caracteres)" />
+                </div>
+                <button id="register-btn"><i class="fas fa-user-plus"></i> Cadastrar</button>
+            </div>
+
+            <div id="auth-message" class="message-area hidden"></div>
+        </div>
+
+        <div id="main-app" class="hidden">
+            <div class="nav-tabs">
+                <div class="tab active" data-tab="contagem"><i class="fas fa-clipboard-list"></i> Contagem</div>
+                <div class="tab" data-tab="bipagem"><i class="fas fa-barcode"></i> Bipagem</div>
+                <div class="tab" data-tab="produtos"><i class="fas fa-boxes"></i> Produtos</div>
+                <div class="tab" id="logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</div>
+            </div>
+
+            <div class="container">
+                <div id="contagem" class="tab-content active">
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-list"></i> Contagens Ativas</div>
+                        <div id="sessions-grid">
+                            <div class="grid-header">
+                                <div class="grid-cell header">Nome da Sessão</div>
+                                <div class="grid-cell header">Quantidade de Itens</div>
+                                <div class="grid-cell header">Itens Contados</div>
+                                <div class="grid-cell header">Itens Bipados</div>
+                            </div>
+                            <div id="sessions-list">
+                                <div id="no-sessions-msg">Carregando sessões ativas...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="bipagem" class="tab-content">
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-barcode"></i> Área de Bipagem</div>
+                        <div class="session-header-container">
+                            <div id="current-session-name" class="current-session-name">Nenhuma sessão selecionada</div>
+                            <button id="end-session-btn" class="end-session-btn hidden" onclick="endCurrentSession()"><i class="fas fa-stop"></i> Finalizar</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="barcode-input">Código de Barras</label>
+                            <input type="text" id="barcode-input" placeholder="Escaneie ou digite o código" autocomplete="off" />
+                        </div>
+                        <div class="form-group quantity-group">
+                            <label for="quantity-input">Quantidade (padrão: 1)</label>
+                            <div class="quantity-input-container">
+                                <input type="number" id="quantity-input" value="1" min="1" />
+                                <button id="add-scan-btn"><i class="fas fa-plus-circle"></i> Adicionar</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-info-circle"></i> Área de Mensagens</div>
+                        <div id="message-area" class="message-area">
+                            <p>Nenhuma operação realizada ainda. Escaneie um código ou digite manualmente.</p>
+                        </div>
+                    </div>
+                    <div id="avulsa-scans-card" class="card hidden">
+                        <div class="card-title"><i class="fas fa-history"></i> Últimas Bipagens (Contagem Avulsa)</div>
+                        <div id="avulsa-scans-list">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="produtos" class="tab-content">
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-boxes"></i> Lista de Produtos</div>
+                        <div id="products-list" class="product-list">
+                            <p id="no-products-msg">Aguardando sincronização de dados...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">ServeAuto SmartCount 1.0 &copy; 2025 - Contagem Inteligente de Estoque</div>
+    </div>
+
+    <script>
+        // =============================
+        // Supabase: configuração + FIX
+        // =============================
+        const supabaseUrl = 'https://dkpqjtbrmxozynpxdurv.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrcHFqdGJybXhvenlucHhkdXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NjIyNDUsImV4cCI6MjA3MjIzODI0NX0.EVXv7iH70zDNb_vrILJMVb2ccBWFWA0sAU4CoPSRh54';
+
+        // FIX principal: não sombrear o objeto global `supabase`.
+        // Em vez de `const supabase = supabase.createClient(...)` (gera ReferenceError por TDZ),
+        // usamos outro nome (sb) e referenciamos via window.supabase.
+        const supabase = (window.supabase && window.supabase.createClient)
+            ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+            : null;
+
+        // =============================
+        // Estado do app
+        // =============================
+        let currentUser = null;
+        let currentSession = null;
+        let products = [];
+        let userProfile = null;
+        let activeSessions = [];
+
+        // =============================
+        // Elementos
+        // =============================
+        const authSection = document.getElementById('auth-section');
+        const mainApp = document.getElementById('main-app');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loginTab = document.getElementById('login-tab');
+        const registerTab = document.getElementById('register-tab');
+        const authMessage = document.getElementById('auth-message');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const loginBtn = document.getElementById('login-btn');
+        const registerBtn = document.getElementById('register-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userInfoElement = document.getElementById('user-info');
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+
+
+        async function initApp() {
+            setupEventListeners(); // garantir que botões funcionem mesmo se SDK falhar
+
+            if (!supabase) {
+                showAuthSection();
+                showAuthMessage('Falha ao carregar o SDK do Supabase. Verifique sua conexão ou a tag do script.', 'error');
+                return;
+            }
+
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    const user = session.user;
+                    const { data: profile } = await supabase
+                        .from('user_profiles')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (profile && profile.authorized) {
+                        currentUser = user;
+                        userProfile = profile;
+                        showMainApp();
+                        updateUserInfo();
+                        loadUserData();
+                    } else {
+                        await supabase.auth.signOut();
+                        showAuthSection();
+                    }
+                } else {
+                    showAuthSection();
+                }
+            } catch (err) {
+                console.error(err);
+                showAuthSection();
+                showAuthMessage('Não foi possível inicializar a sessão.', 'error');
+            }
+        }
+
+        function showAuthSection() {
+            authSection.classList.remove('hidden');
+            mainApp.classList.add('hidden');
+        }
+        function showMainApp() {
+            authSection.classList.add('hidden');
+            mainApp.classList.remove('hidden');
+        }
+        
+        function updateUserInfo() {
+            if (currentUser && userProfile) {
+                userInfoElement.textContent = `Usuário: ${userProfile.name}`;
+                userInfoElement.classList.remove('hidden');
+            }
+        }
+
+        function setupEventListeners() {
+            // Abas de autenticação
+            loginTab.addEventListener('click', () => {
+                loginTab.classList.add('active');
+                registerTab.classList.remove('active');
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                authMessage.classList.add('hidden');
+            });
+            registerTab.addEventListener('click', () => {
+                registerTab.classList.add('active');
+                loginTab.classList.remove('active');
+                registerForm.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+                authMessage.classList.add('hidden');
+            });
+
+            // Enter para enviar login/cadastro
+            document.getElementById('password').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') loginBtn.click();
+            });
+            document.getElementById('reg-password').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') registerBtn.click();
+            });
+
+            // Botões de autenticação
+            loginBtn.addEventListener('click', handleLogin);
+            registerBtn.addEventListener('click', handleRegister);
+            if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+            // Abas principais
+            tabs.forEach((tab) => {
+                if (tab.id !== 'logout-btn') {
+                    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+                }
+            });
+
+            // Contagem - removido os botões de start/end
+
+            // Bipagem
+            document.getElementById('barcode-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') document.getElementById('add-scan-btn').click();
+            });
+            document.getElementById('add-scan-btn').addEventListener('click', addScan);
+
+            // Menu hambúrguer
+            const hamburger = document.getElementById('hamburger');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const sidebarLogout = document.getElementById('sidebar-logout');
+
+            if (hamburger && sidebar && overlay) {
+                hamburger.addEventListener('click', () => {
+                    sidebar.classList.add('active');
+                    overlay.classList.add('active');
+                });
+
+                overlay.addEventListener('click', () => {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                });
+
+                // Menu items do sidebar
+                const menuItems = sidebar.querySelectorAll('.menu-item[data-tab]');
+                menuItems.forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const tabName = item.dataset.tab;
+                        switchTab(tabName);
+                        sidebar.classList.remove('active');
+                        overlay.classList.remove('active');
+                    });
+                });
+
+                // Logout do sidebar
+                if (sidebarLogout) {
+                    sidebarLogout.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        handleLogout();
+                        sidebar.classList.remove('active');
+                        overlay.classList.remove('active');
+                    });
+                }
+            }
+        }
+
+        async function handleLogin() {
+            if (!supabase) return showAuthMessage('SDK do Supabase indisponível.', 'error');
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            if (!email || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
+
+            loginBtn.innerHTML = '<div class="loading"></div> Entrando...';
+            loginBtn.disabled = true;
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+
+                const { data: profile, error: profileError } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('id', data.user.id)
+                    .single();
+                if (profileError || !profile || !profile.authorized) {
+                    showAuthMessage('Usuário não autorizado. Entre em contato com o administrador.', 'error');
+                    await supabase.auth.signOut();
+                    return;
+                }
+
+                await supabase.from('session_logs').insert([{ user_id: data.user.id, action: 'login' }]);
+                currentUser = data.user;
+                userProfile = profile;
+                showMainApp();
+                updateUserInfo();
+                loadUserData();
+            } catch (err) {
+                console.error(err);
+                showAuthMessage(err.message || 'Erro inesperado. Tente novamente.', 'error');
+            } finally {
+                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar';
+                loginBtn.disabled = false;
+            }
+        }
+
+        async function handleRegister() {
+            if (!supabase) return showAuthMessage('SDK do Supabase indisponível.', 'error');
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            if (!name || !email || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
+            if (password.length < 6) return showAuthMessage('A senha deve ter pelo menos 6 caracteres.', 'error');
+
+            registerBtn.innerHTML = '<div class="loading"></div> Cadastrando...';
+            registerBtn.disabled = true;
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: { data: { name } },
+                });
+                if (error) throw error;
+
+                const userId = data?.user?.id;
+                if (userId) {
+                    const { error: profileError } = await supabase.from('user_profiles').insert([
+                        { id: userId, name, authorized: false, import_limit: 10 },
+                    ]);
+                    if (profileError) throw profileError;
+                }
+                showAuthMessage('Cadastro realizado! Aguarde a autorização de um administrador.', 'success');
+            } catch (err) {
+                console.error(err);
+                showAuthMessage(err.message || 'Erro inesperado. Tente novamente.', 'error');
+            } finally {
+                registerBtn.innerHTML = '<i class="fas fa-user-plus"></i> Cadastrar';
+                registerBtn.disabled = false;
+            }
+        }
+
+        async function handleLogout() {
+            if (currentUser && supabase) {
+                await supabase.from('session_logs').insert([{ user_id: currentUser.id, action: 'logout' }]);
+                await supabase.auth.signOut();
+            }
+            currentUser = null;
+            currentSession = null;
+            userProfile = null;
+            products = [];
+            showAuthSection();
+            userInfoElement.classList.add('hidden');
+        }
+
+        function showAuthMessage(message, type) {
+            authMessage.textContent = message;
+            authMessage.className = 'message-area';
+            if (type === 'error') authMessage.classList.add('error');
+            else if (type === 'success') authMessage.classList.add('success');
+            authMessage.classList.remove('hidden');
+        }
+
+        function switchTab(tabName) {
+            tabs.forEach((tab) => tab.classList.remove('active'));
+            tabContents.forEach((content) => content.classList.remove('active'));
+            const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+            const content = document.getElementById(tabName);
+            if (tab) tab.classList.add('active');
+            if (content) content.classList.add('active');
+            if (tabName === 'produtos') renderProducts();
+            if (tabName === 'contagem' && currentUser) loadActiveSessions();
+        }
+
+        async function loadActiveSessions() {
+            if (!supabase || !currentUser) return;
+            
+            try {
+                const { data: sessions, error } = await supabase
+                    .from('counting_sessions')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .eq('status', 'active')
+                    .order('created_at', { ascending: false });
+                    
+                if (error) {
+                    console.error('Erro ao carregar sessões:', error);
+                    return;
+                }
+                
+                activeSessions = sessions || [];
+                renderActiveSessions();
+            } catch (err) {
+                console.error('Erro ao carregar sessões ativas:', err);
+            }
+        }
+        
+        function renderActiveSessions() {
+            const sessionsList = document.getElementById('sessions-list');
+            
+            if (!activeSessions || activeSessions.length === 0) {
+                sessionsList.innerHTML = '<div id="no-sessions-msg">Nenhuma sessão ativa encontrada.</div>';
+                return;
+            }
+            
+            sessionsList.innerHTML = '';
+            
+            activeSessions.forEach(session => {
+                const card = document.createElement('div');
+                card.className = 'session-card';
+                
+                // Determinar ícone baseado no tipo de contagem
+                const icon = session.count_type === 'avulsa' ? 'fas fa-hand-paper' : 'fas fa-file-alt';
+                const typeLabel = session.count_type === 'avulsa' ? 'Contagem Avulsa' : 'Contagem com Arquivo';
+                
+                // Calcular progresso
+                const totalItems = session.total_items || 0;
+                const countedItems = session.counted_items || 0;
+                const progress = totalItems > 0 ? Math.round((countedItems / totalItems) * 100) : 0;
+                
+                card.innerHTML = `
+                    <div class="session-header">
+                        <div class="session-icon">
+                            <i class="${icon}"></i>
+                        </div>
+                        <div class="session-title">
+                            <h3 class="session-name">${session.session_name || 'Sessão sem nome'}</h3>
+                            <p class="session-subtitle">${typeLabel} • ${progress}% concluído</p>
+                        </div>
+                    </div>
+                    <div class="session-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">${session.total_items || 0}</span>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">${session.counted_items || 0}</span>
+                            <div class="stat-label">Contados</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">${session.scanned_items || 0}</span>
+                            <div class="stat-label">Bipados</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Adicionar evento de clique no card
+                card.addEventListener('click', async () => {
+                    // Definir a sessão clicada como sessão atual
+                    currentSession = session;
+                    
+                    // Carregar produtos da sessão se for contagem normal
+                    if (session.count_type === 'normal') {
+                        const { data: sessionProducts } = await supabase
+                            .from('products')
+                            .select('*')
+                            .eq('session_id', session.id);
+                        if (sessionProducts && sessionProducts.length > 0) {
+                            products = sessionProducts.map(p => ({
+                                codigo: p.codigo,
+                                descricao: p.descricao,
+                                quantidade_atual: p.quantidade_atual,
+                                quantidade_contada: p.quantidade_contada,
+                                is_counted: p.is_counted
+                            }));
+                        }
+                    }
+                    
+                    // Mostrar/ocultar card de bipagens avulsas baseado no tipo
+                    const avulsaCard = document.getElementById('avulsa-scans-card');
+                    if (session.count_type === 'avulsa') {
+                        avulsaCard.classList.remove('hidden');
+                        
+                        // Carregar bipagens existentes
+                        const { data: existingScans } = await supabase
+                            .from('scans')
+                            .select('*')
+                            .eq('session_id', session.id)
+                            .order('created_at', { ascending: false });
+                        
+                        if (existingScans && existingScans.length > 0) {
+                            const avulsaList = document.getElementById('avulsa-scans-list');
+                            avulsaList.innerHTML = '';
+                            
+                            existingScans.forEach(scan => {
+                                const scanItem = document.createElement('div');
+                                scanItem.className = 'scan-item';
+                                scanItem.innerHTML = `
+                                    <span class="scan-code">${scan.code}</span>
+                                    <span class="scan-qty">Qtd: ${scan.quantity}</span>
+                                `;
+                                avulsaList.appendChild(scanItem);
+                            });
+                        }
+                    } else {
+                        avulsaCard.classList.add('hidden');
+                    }
+                    
+                    // Atualizar interface
+                    if (currentSession.count_type === 'normal' && products.length > 0) {
+                        renderProducts();
+                    }
+                    
+                    // Atualizar nome da sessão atual
+                    const sessionNameElement = document.getElementById('current-session-name');
+                    const endSessionBtn = document.getElementById('end-session-btn');
+                    if (sessionNameElement) {
+                        sessionNameElement.textContent = session.session_name || 'Sessão sem nome';
+                    }
+                    if (endSessionBtn) {
+                        endSessionBtn.classList.remove('hidden');
+                    }
+                    
+                    // Ativar aba de bipagem
+                    switchTab('bipagem');
+                    
+                    // Focar no campo de código de barras
+                    const barcodeInput = document.getElementById('barcode-input');
+                    if (barcodeInput) {
+                        barcodeInput.focus();
+                    }
+                });
+                
+                sessionsList.appendChild(card);
+            });
+        }
+
+        async function endCurrentSession() {
+            if (!currentSession) return showMessage('Nenhuma sessão ativa para finalizar.', 'error');
+            if (!supabase) return showMessage('Conexão com banco de dados indisponível.', 'error');
+            
+            if (!confirm('Tem certeza que deseja finalizar esta sessão? Esta ação não pode ser desfeita.')) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('counting_sessions')
+                    .update({ status: 'completed', ended_at: new Date().toISOString() })
+                    .eq('id', currentSession.id);
+                    
+                if (error) {
+                    console.error('Erro ao finalizar sessão:', error);
+                    return showMessage('Erro ao finalizar sessão: ' + error.message, 'error');
+                }
+                
+                // Limpar estado atual
+                currentSession = null;
+                products = [];
+                
+                // Ocultar botão finalizar e resetar nome da sessão
+                const sessionNameElement = document.getElementById('current-session-name');
+                const endSessionBtn = document.getElementById('end-session-btn');
+                if (sessionNameElement) {
+                    sessionNameElement.textContent = 'Nenhuma sessão selecionada';
+                }
+                if (endSessionBtn) {
+                    endSessionBtn.classList.add('hidden');
+                }
+                
+                // Ocultar card de bipagens avulsas
+                const avulsaCard = document.getElementById('avulsa-scans-card');
+                if (avulsaCard) {
+                    avulsaCard.classList.add('hidden');
+                }
+                
+                // Limpar campos
+                const barcodeInput = document.getElementById('barcode-input');
+                const quantityInput = document.getElementById('quantity-input');
+                if (barcodeInput) barcodeInput.value = '';
+                if (quantityInput) quantityInput.value = '1';
+                
+                // Atualizar lista de sessões ativas
+                loadActiveSessions();
+                
+                showMessage('Sessão finalizada com sucesso!', 'success');
+                
+                // Voltar para aba de contagem
+                switchTab('contagem');
+                
+            } catch (err) {
+                console.error('Erro ao finalizar sessão:', err);
+                showMessage('Erro inesperado ao finalizar sessão.', 'error');
+            }
+        }
+
+        async function addScan() {
+            if (!currentSession) return showMessage('Inicie uma contagem antes de escanear produtos.', 'error');
+            if (!supabase) return showMessage('Conexão com banco de dados indisponível.', 'error');
+            
+
+            
+            const barcodeInput = document.getElementById('barcode-input');
+            const quantityInput = document.getElementById('quantity-input');
+            const codigo = barcodeInput.value.trim();
+            const quantity = parseInt(quantityInput.value, 10) || 1;
+            if (!codigo) return showMessage('Digite ou escaneie um código de barras.', 'error');
+
+            let product = null;
+            let productDescription = '';
+            
+            if (currentSession.count_type === 'normal') {
+                product = products.find((p) => p.codigo === codigo);
+				
+				if (!product) {
+					barcodeInput.value = ''; 
+					quantityInput.value = '1'; 
+					return showMessage('Produto não encontrado na lista importada.', 'error');
+				}
+				
+                product.quantidade_contada += quantity;
+                product.is_counted = true;
+                productDescription = product.descricao;
+                
+                const { error } = await supabase
+                    .from('products')
+                    .update({ quantidade_contada: product.quantidade_contada, is_counted: true })
+                    .eq('session_id', currentSession.id)
+                    .eq('codigo', codigo);
+                if (error) console.error('Erro ao atualizar produto:', error);
+            } else {
+                const { data: existingProduct } = await supabase
+                    .from('products')
+                    .select('*')
+                    .eq('session_id', currentSession.id)
+                    .eq('codigo', codigo)
+                    .single();
+                    
+                if (existingProduct) {
+                    const newQuantity = existingProduct.quantidade_contada + quantity;
+                    const { error } = await supabase
+                        .from('products')
+                        .update({ quantidade_contada: newQuantity, is_counted: true })
+                        .eq('id', existingProduct.id);
+                    if (error) console.error('Erro ao atualizar produto:', error);
+                    productDescription = existingProduct.descricao;
+                } else {
+                    const { data: newProduct, error } = await supabase
+                        .from('products')
+                        .insert([{ session_id: currentSession.id, codigo, descricao: 'Produto avulso', quantidade_atual: 0, quantidade_contada: quantity, is_counted: true }])
+                        .select()
+                        .single();
+                    if (error) console.error('Erro ao criar produto:', error);
+                    productDescription = 'Produto avulso';
+                }
+                
+                const avulsaList = document.getElementById('avulsa-scans-list');
+                const scanItem = document.createElement('div');
+                scanItem.className = 'scan-item';
+                scanItem.innerHTML = `
+                    <span class="scan-code">${codigo}</span>
+                    <span class="scan-qty">Qtd: ${quantity}</span>
+                `;
+                avulsaList.prepend(scanItem); 
+            }
+
+            // Inserir scan na tabela scans
+            const scanData = { session_id: currentSession.id, code: codigo, quantity, description: productDescription };
+            
+            const { error: scanError } = await supabase
+                .from('scans')
+                .insert([scanData]);
+            if (scanError) {
+                console.error('Erro ao registrar scan:', scanError);
+                showMessage(`ERRO ao gravar scan: ${scanError.message}`, 'error');
+                return;
+            }
+
+            const { data: sessionData } = await supabase
+                .from('counting_sessions')
+                .select('counted_items, scanned_items')
+                .eq('id', currentSession.id)
+                .single();
+                
+            const newCountedItems = currentSession.count_type === 'normal' ? 
+                products.filter(p => p.is_counted).length : 
+                (sessionData?.counted_items || 0) + (product ? 0 : 1);
+            const newScannedItems = (sessionData?.scanned_items || 0) + quantity;
+            
+            const { error: sessionError } = await supabase
+                .from('counting_sessions')
+                .update({ counted_items: newCountedItems, scanned_items: newScannedItems })
+                .eq('id', currentSession.id);
+            if (sessionError) console.error('Erro ao atualizar sessão:', sessionError);
+            
+            currentSession.counted_items = newCountedItems;
+            currentSession.scanned_items = newScannedItems;
+            
+            showMessage(`Produto ${codigo} (${productDescription}) adicionado com quantidade ${quantity}.`, 'success');
+            barcodeInput.value = '';
+            quantityInput.value = '1';
+            barcodeInput.focus();
+            
+            if (currentSession.count_type === 'normal') {
+                renderProducts();
+            }
+
+            // AJUSTE 1: Checar se a contagem com arquivo foi concluída
+            if (currentSession.count_type === 'normal' && currentSession.total_items > 0 && currentSession.counted_items === currentSession.total_items) {
+                showMessage('Contagem Efetuada 100%!', 'error');
+            }
+        }
+
+        function renderProducts() {
+            const productsList = document.getElementById('products-list');
+            if (!products || products.length === 0) {
+                let message = 'Aguardando sincronização de dados...';
+                if (currentSession) {
+                    message = `<div class="session-info">Sessão Ativa: <strong>${currentSession.session_name}</strong></div><p id="no-products-msg">Nenhum produto importado para esta sessão.</p>`;
+                }
+                productsList.innerHTML = message;
+                return;
+            }
+            
+            // Adicionar informações da sessão ativa no topo
+            let sessionHeader = '';
+            if (currentSession) {
+                sessionHeader = `<div class="session-info active-session">Sessão Ativa: <strong>${currentSession.session_name}</strong> (${currentSession.count_type === 'normal' ? 'Com Arquivo' : 'Avulsa'})</div>`;
+            }
+            
+            productsList.innerHTML = sessionHeader;
+            products.forEach((product) => {
+                const item = document.createElement('div');
+                item.className = 'product-item';
+                item.innerHTML = `
+                    <div class="product-info">
+                        <div class="product-code">${product.codigo}</div>
+                        <div class="product-desc">${product.descricao}</div>
+                    </div>
+                    <div class="product-count">
+                        ${product.is_counted ? `<span class="count-badge">${product.quantidade_contada}</span>` : '<span style="color: var(--danger);">Pendente</span>'}
+                    </div>
+                `;
+                productsList.appendChild(item);
+            });
+        }
+
+
+
+        function showMessage(message, type) {
+            const messageArea = document.getElementById('message-area');
+            messageArea.innerHTML = `<p>${message}</p>`;
+            messageArea.className = 'message-area';
+            if (type === 'error') messageArea.classList.add('error');
+            else if (type === 'success') messageArea.classList.add('success');
+        }
+
+
+
+        async function loadUserData() {
+            if (!supabase || !currentUser) return;
+            
+            // Carregar dados do usuário
+            const { data: userData, error: userError } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single();
+                
+            if (userError) {
+                console.error('Erro ao carregar dados do usuário:', userError);
+                return;
+            }
+            
+            // Atualizar interface com dados do usuário
+            if (userData) {
+                const userNameElement = document.getElementById('user-name');
+                if (userNameElement) {
+                    userNameElement.textContent = userData.name || userData.email;
+                }
+            }
+            
+            // Carregar sessões ativas para o grid
+            await loadActiveSessions();
+            
+            // Carregar sessões ativas para funcionalidade existente
+            const { data: activeSessions } = await supabase
+                .from('counting_sessions')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+                .limit(1);
+            if (activeSessions && activeSessions.length > 0) {
+                currentSession = activeSessions[0];
+                const { data: sessionProducts } = await supabase
+                    .from('products')
+                    .select('*')
+                    .eq('session_id', currentSession.id);
+                if (sessionProducts && sessionProducts.length > 0) {
+                    products = sessionProducts.map(p => ({
+                        codigo: p.codigo,
+                        descricao: p.descricao,
+                        quantidade_atual: p.quantidade_atual,
+                        quantidade_contada: p.quantidade_contada,
+                        is_counted: p.is_counted
+                    }));
+                }
+                // Controle de botões removido
+                
+                // Mostrar card de bipagens avulsas se for contagem avulsa
+                if (currentSession.count_type === 'avulsa') {
+                    document.getElementById('avulsa-scans-card').classList.remove('hidden');
+                    
+                    // Carregar bipagens já existentes
+                    const { data: existingScans } = await supabase
+                        .from('scans')
+                        .select('*')
+                        .eq('session_id', currentSession.id)
+                        .order('created_at', { ascending: false });
+                    
+                    if (existingScans && existingScans.length > 0) {
+                        const avulsaList = document.getElementById('avulsa-scans-list');
+                        avulsaList.innerHTML = ''; // Limpar lista atual
+                        
+                        existingScans.forEach(scan => {
+                            const scanItem = document.createElement('div');
+                            scanItem.className = 'scan-item';
+                            scanItem.innerHTML = `
+                                <span class="scan-code">${scan.code}</span>
+                                <span class="scan-qty">Qtd: ${scan.quantity}</span>
+                            `;
+                            avulsaList.appendChild(scanItem);
+                        });
+                    }
+                }
+                
+                // Atualizar lista de produtos na interface
+                if (currentSession && currentSession.count_type === 'normal' && products.length > 0) {
+                    renderProducts();
+                }
+            } else {
+                // Limpar interface quando não há sessão ativa (sessão foi encerrada)
+                currentSession = null;
+                products = [];
+                renderProducts();
+                
+                // Controle de botões removido
+                
+                // Ocultar card de bipagens avulsas
+                document.getElementById('avulsa-scans-card').classList.add('hidden');
+                
+                // Limpar lista de bipagens avulsas
+                const avulsaList = document.getElementById('avulsa-scans-list');
+                if (avulsaList) {
+                    avulsaList.innerHTML = '';
+                }
+                
+                // Limpar campo de código de barras
+                const barcodeInput = document.getElementById('barcode-input');
+                if (barcodeInput) {
+                    barcodeInput.value = '';
+                }
+                
+                // Resetar quantidade para 1
+                const quantityInput = document.getElementById('quantity-input');
+                if (quantityInput) {
+                    quantityInput.value = '1';
+                }
+            }
+        }
+    </script>
+
+
+
+</body>
+</html>
