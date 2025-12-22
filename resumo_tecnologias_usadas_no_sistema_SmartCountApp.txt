@@ -1,0 +1,23 @@
+toolName: view_folder
+            
+status: success
+          
+c:\_working\Projetos\smartcountapp
+          
+**Visão Geral**
+- Frontend: `HTML5`, `CSS3` e `JavaScript` puro (sem framework). Tudo em `index.html`.
+- Backend/Infra: `Supabase` para autenticação e banco de dados (Postgres) acessado direto do navegador via SDK.
+- Bibliotecas/CDNs: `Supabase JS v2` e `Font Awesome` para ícones.
+
+**Onde aparece no código**
+- `Font Awesome` importado via CDN em `c:\_working\Projetos\smartcountapp\index.html:7`.
+- `Supabase JS v2` importado via CDN em `c:\_working\Projetos\smartcountapp\index.html:8`.
+- Cliente `Supabase` criado em `c:\_working\Projetos\smartcountapp\index.html:544-546`.
+- Autenticação (login/cadastro/logout) usando `supabase.auth` em `c:\_working\Projetos\smartcountapp\index.html:719-790` e `792-803`.
+- Operações de dados nas tabelas `user_profiles`, `session_logs`, `counting_sessions`, `products`, `scans` em `c:\_working\Projetos\smartcountapp\index.html:828-1131` e `1198-1307`.
+- Layout responsivo via CSS e media queries em `c:\_working\Projetos\smartcountapp\index.html:295-330`.
+
+**Resumo por camada**
+- UI: `HTML` + `CSS` (componentes simples, media queries, ícones com `Font Awesome`).
+- Lógica: `JavaScript` no navegador manipulando DOM e chamando o `Supabase`.
+- Dados e Auth: `Supabase` (Postgres + Auth) acessado via `@supabase/supabase-js` CDN.

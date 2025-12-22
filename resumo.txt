@@ -1,0 +1,13 @@
+ServeAuto SmartCount é um sistema que facilita a contagem de estoque de forma rápida e simples.
+
+O que ele faz:
+- Permite iniciar e acompanhar sessões de contagem em andamento.
+- Mostra o progresso da contagem (itens totais, contados e bipados).
+- Possui uma área de bipagem para ler códigos de barras e registrar quantidades.
+- Funciona de dois jeitos: com lista de produtos importada ou de forma avulsa (sem lista).
+- Exibe a lista de produtos da sessão e marca quais já foram contados.
+- Permite finalizar a sessão quando a contagem terminar.
+- Oferece login e cadastro de usuários com controle de acesso.
+- Guarda as informações em um banco de dados na nuvem, mantendo tudo organizado e seguro.
+
+Em resumo, o sistema centraliza a contagem do estoque, evita erros e traz praticidade ao registrar cada item de forma rápida pelo código de barras.
