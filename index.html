@@ -69,7 +69,7 @@
         .product-desc { color: var(--secondary); font-size: .9rem; margin: .2rem 0; }
         .product-count { display: flex; align-items: center; }
         .count-badge { background-color: var(--primary); color: #fff; border-radius: 1rem; padding: .2rem .6rem; font-size: .8rem; font-weight: 600; }
-        .scan-badge { background-color: var(--info); color: #fff; border-radius: 1rem; padding: .2rem .6rem; font-size: .8rem; font-weight: 600; margin-left: .4rem; }
+
         .hidden { display: none; }
         .auth-container { max-width: 400px; margin: 2rem auto; padding: 2rem; background-color: var(--card); border-radius: .5rem; box-shadow: 0 4px 6px rgba(0,0,0,.1); }
         .auth-tabs { display: flex; margin-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; }
@@ -1119,7 +1119,7 @@
                     </div>
                     <div class="product-count">
                         ${product.is_counted ? `<span class="count-badge">${product.quantidade_contada}</span>` : '<span style="color: var(--danger);">Pendente</span>'}
-                        <span class="scan-badge">${product.scanned_qty || 0}</span>
+
                     </div>
                 `;
                 productsList.appendChild(item);
