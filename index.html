@@ -69,6 +69,7 @@
         .product-desc { color: var(--secondary); font-size: .9rem; margin: .2rem 0; }
         .product-count { display: flex; align-items: center; }
         .count-badge { background-color: var(--primary); color: #fff; border-radius: 1rem; padding: .2rem .6rem; font-size: .8rem; font-weight: 600; }
+        .scan-badge { background-color: var(--info); color: #fff; border-radius: 1rem; padding: .2rem .6rem; font-size: .8rem; font-weight: 600; margin-left: .4rem; }
         .hidden { display: none; }
         .auth-container { max-width: 400px; margin: 2rem auto; padding: 2rem; background-color: var(--card); border-radius: .5rem; box-shadow: 0 4px 6px rgba(0,0,0,.1); }
         .auth-tabs { display: flex; margin-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; }
@@ -848,7 +849,8 @@
                                 descricao: p.descricao,
                                 quantidade_atual: p.quantidade_atual,
                                 quantidade_contada: p.quantidade_contada,
-                                is_counted: p.is_counted
+                                is_counted: p.is_counted,
+                                scanned_qty: p.scanned_qty
                             }));
                         }
                     }
@@ -995,11 +997,13 @@
 				
                 product.quantidade_contada += quantity;
                 product.is_counted = true;
+                const newScannedQty = (product.scanned_qty || 0) + quantity;
+                product.scanned_qty = newScannedQty;
                 productDescription = product.descricao;
                 
                 const { error } = await sb
                     .from('products')
-                    .update({ quantidade_contada: product.quantidade_contada, is_counted: true })
+                    .update({ quantidade_contada: product.quantidade_contada, is_counted: true, scanned_qty: newScannedQty })
                     .eq('session_id', currentSession.id)
                     .eq('codigo', codigo);
                 if (error) console.error('Erro ao atualizar produto:', error);
@@ -1013,18 +1017,19 @@
                     
                 if (existingProduct) {
                     const newQuantity = existingProduct.quantidade_contada + quantity;
+                    const newScannedQty = (existingProduct.scanned_qty || 0) + quantity;
                     const { error } = await sb
                         .from('products')
-                        .update({ quantidade_contada: newQuantity, is_counted: true })
+                        .update({ quantidade_contada: newQuantity, is_counted: true, scanned_qty: newScannedQty })
                         .eq('id', existingProduct.id);
                     if (error) console.error('Erro ao atualizar produto:', error);
                     productDescription = existingProduct.descricao;
                 } else {
                     const { data: newProduct, error } = await sb
                         .from('products')
-                        .insert([{ session_id: currentSession.id, codigo, descricao: 'Produto avulso', quantidade_atual: 0, quantidade_contada: quantity, is_counted: true }])
+                        .insert([{ session_id: currentSession.id, codigo, descricao: 'Produto avulso', quantidade_atual: 0, quantidade_contada: quantity, is_counted: true, scanned_qty: quantity }])
                         .select()
-                        .single();
+                        .maybeSingle();
                     if (error) console.error('Erro ao criar produto:', error);
                     productDescription = 'Produto avulso';
                 }
@@ -1114,6 +1119,7 @@
                     </div>
                     <div class="product-count">
                         ${product.is_counted ? `<span class="count-badge">${product.quantidade_contada}</span>` : '<span style="color: var(--danger);">Pendente</span>'}
+                        <span class="scan-badge">${product.scanned_qty || 0}</span>
                     </div>
                 `;
                 productsList.appendChild(item);
@@ -1155,7 +1161,8 @@
                         descricao: p.descricao,
                         quantidade_atual: p.quantidade_atual,
                         quantidade_contada: p.quantidade_contada,
-                        is_counted: p.is_counted
+                        is_counted: p.is_counted,
+                        scanned_qty: p.scanned_qty
                     }));
                 }
                 if (currentSession.count_type === 'avulsa') {
