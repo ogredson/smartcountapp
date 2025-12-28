@@ -526,9 +526,8 @@
         const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrcHFqdGJybXhvenlucHhkdXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NjIyNDUsImV4cCI6MjA3MjIzODI0NX0.EVXv7iH70zDNb_vrILJMVb2ccBWFWA0sAU4CoPSRh54';
 
         // FIX principal: não sombrear o objeto global `supabase`.
-        // Em vez de `const supabase = supabase.createClient(...)` (gera ReferenceError por TDZ),
-        // usamos outro nome (sb) e referenciamos via window.supabase.
-        const supabase = (window.supabase && window.supabase.createClient)
+        // Em vez de `const supabase = supabase.createClient(...)`, usamos `sb`.
+        const sb = (window.supabase && window.supabase.createClient)
             ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
             : null;
 
@@ -561,7 +560,7 @@
 
         async function initApp() {
             setupEventListeners();
-            if (!supabase) {
+            if (!sb) {
                 showAuthSection();
                 showAuthMessage('Falha ao carregar o SDK do Supabase.', 'error');
                 return;
@@ -675,7 +674,7 @@
         }
 
         async function handleLogin() {
-            if (!supabase) return showAuthMessage('SDK do Supabase indisponível.', 'error');
+            if (!sb) return showAuthMessage('SDK do Supabase indisponível.', 'error');
             const companyEmail = document.getElementById('company-email').value.trim();
             const userEmail = document.getElementById('user-email').value.trim();
             const password = document.getElementById('password').value;
@@ -684,7 +683,7 @@
             loginBtn.innerHTML = '<div class="loading"></div> Entrando...';
             loginBtn.disabled = true;
             try {
-                const { data: company } = await supabase
+                const { data: company } = await sb
                     .from('empresas')
                     .select('*')
                     .eq('email', companyEmail)
@@ -693,7 +692,7 @@
                     showAuthMessage('Empresa não encontrada.', 'error');
                     return;
                 }
-                const { data: user } = await supabase
+                const { data: user } = await sb
                     .from('usuarios')
                     .select('*')
                     .eq('email', userEmail)
@@ -760,10 +759,10 @@
         }
 
         async function loadActiveSessions() {
-            if (!supabase || !currentUser || !currentCompany) return;
+            if (!sb || !currentUser || !currentCompany) return;
             
             try {
-                const { data: sessions, error } = await supabase
+                const { data: sessions, error } = await sb
                     .from('counting_sessions')
                     .select('*')
                     .eq('id_empresa', currentCompany.id)
@@ -839,7 +838,7 @@
                     
                     // Carregar produtos da sessão se for contagem normal
                     if (session.count_type === 'normal') {
-                        const { data: sessionProducts } = await supabase
+                        const { data: sessionProducts } = await sb
                             .from('products')
                             .select('*')
                             .eq('session_id', session.id);
@@ -860,7 +859,7 @@
                         avulsaCard.classList.remove('hidden');
                         
                         // Carregar bipagens existentes
-                        const { data: existingScans } = await supabase
+                        const { data: existingScans } = await sb
                             .from('scans')
                             .select('*')
                             .eq('session_id', session.id)
@@ -915,12 +914,12 @@
 
         async function endCurrentSession() {
             if (!currentSession) return showMessage('Nenhuma sessão ativa para finalizar.', 'error');
-            if (!supabase) return showMessage('Conexão com banco de dados indisponível.', 'error');
+            if (!sb) return showMessage('Conexão com banco de dados indisponível.', 'error');
             
             if (!confirm('Tem certeza que deseja finalizar esta sessão? Esta ação não pode ser desfeita.')) return;
             
             try {
-                const { error } = await supabase
+                const { error } = await sb
                     .from('counting_sessions')
                     .update({ status: 'completed', ended_at: new Date().toISOString() })
                     .eq('id', currentSession.id);
@@ -972,7 +971,7 @@
 
         async function addScan() {
             if (!currentSession) return showMessage('Inicie uma contagem antes de escanear produtos.', 'error');
-            if (!supabase) return showMessage('Conexão com banco de dados indisponível.', 'error');
+            if (!sb) return showMessage('Conexão com banco de dados indisponível.', 'error');
             
 
             
@@ -998,14 +997,14 @@
                 product.is_counted = true;
                 productDescription = product.descricao;
                 
-                const { error } = await supabase
+                const { error } = await sb
                     .from('products')
                     .update({ quantidade_contada: product.quantidade_contada, is_counted: true })
                     .eq('session_id', currentSession.id)
                     .eq('codigo', codigo);
                 if (error) console.error('Erro ao atualizar produto:', error);
             } else {
-                const { data: existingProduct } = await supabase
+                const { data: existingProduct } = await sb
                     .from('products')
                     .select('*')
                     .eq('session_id', currentSession.id)
@@ -1014,14 +1013,14 @@
                     
                 if (existingProduct) {
                     const newQuantity = existingProduct.quantidade_contada + quantity;
-                    const { error } = await supabase
+                    const { error } = await sb
                         .from('products')
                         .update({ quantidade_contada: newQuantity, is_counted: true })
                         .eq('id', existingProduct.id);
                     if (error) console.error('Erro ao atualizar produto:', error);
                     productDescription = existingProduct.descricao;
                 } else {
-                    const { data: newProduct, error } = await supabase
+                    const { data: newProduct, error } = await sb
                         .from('products')
                         .insert([{ session_id: currentSession.id, codigo, descricao: 'Produto avulso', quantidade_atual: 0, quantidade_contada: quantity, is_counted: true }])
                         .select()
@@ -1043,7 +1042,7 @@
             // Inserir scan na tabela scans
             const scanData = { session_id: currentSession.id, code: codigo, quantity, description: productDescription };
             
-            const { error: scanError } = await supabase
+            const { error: scanError } = await sb
                 .from('scans')
                 .insert([scanData]);
             if (scanError) {
@@ -1052,7 +1051,7 @@
                 return;
             }
 
-            const { data: sessionData } = await supabase
+            const { data: sessionData } = await sb
                 .from('counting_sessions')
                 .select('counted_items, scanned_items')
                 .eq('id', currentSession.id)
@@ -1063,7 +1062,7 @@
                 (sessionData?.counted_items || 0) + (product ? 0 : 1);
             const newScannedItems = (sessionData?.scanned_items || 0) + quantity;
             
-            const { error: sessionError } = await supabase
+            const { error: sessionError } = await sb
                 .from('counting_sessions')
                 .update({ counted_items: newCountedItems, scanned_items: newScannedItems })
                 .eq('id', currentSession.id);
@@ -1134,9 +1133,9 @@
 
 
         async function loadUserData() {
-            if (!supabase || !currentUser || !currentCompany) return;
+            if (!sb || !currentUser || !currentCompany) return;
             await loadActiveSessions();
-            const { data: active } = await supabase
+            const { data: active } = await sb
                 .from('counting_sessions')
                 .select('*')
                 .eq('id_empresa', currentCompany.id)
@@ -1146,7 +1145,7 @@
                 .limit(1);
             if (active && active.length > 0) {
                 currentSession = active[0];
-                const { data: sessionProducts } = await supabase
+                const { data: sessionProducts } = await sb
                     .from('products')
                     .select('*')
                     .eq('session_id', currentSession.id);
@@ -1161,24 +1160,24 @@
                 }
                 if (currentSession.count_type === 'avulsa') {
                     document.getElementById('avulsa-scans-card').classList.remove('hidden');
-                    const { data: existingScans } = await supabase
+                    const { data: existingScans } = await sb
                         .from('scans')
                         .select('*')
                         .eq('session_id', currentSession.id)
                         .order('created_at', { ascending: false });
-                    if (existingScans && existingScans.length > 0) {
-                        const avulsaList = document.getElementById('avulsa-scans-list');
-                        avulsaList.innerHTML = '';
-                        existingScans.forEach(scan => {
-                            const scanItem = document.createElement('div');
-                            scanItem.className = 'scan-item';
-                            scanItem.innerHTML = `
-                                <span class="scan-code">${scan.code}</span>
-                                <span class="scan-qty">Qtd: ${scan.quantity}</span>
-                            `;
-                            avulsaList.appendChild(scanItem);
-                        });
-                    }
+                if (existingScans && existingScans.length > 0) {
+                    const avulsaList = document.getElementById('avulsa-scans-list');
+                    avulsaList.innerHTML = '';
+                    existingScans.forEach(scan => {
+                        const scanItem = document.createElement('div');
+                        scanItem.className = 'scan-item';
+                        scanItem.innerHTML = `
+                            <span class="scan-code">${scan.code}</span>
+                            <span class="scan-qty">Qtd: ${scan.quantity}</span>
+                        `;
+                        avulsaList.appendChild(scanItem);
+                    });
+                }
                 }
                 if (currentSession && currentSession.count_type === 'normal' && products.length > 0) {
                     renderProducts();
