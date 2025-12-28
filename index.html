@@ -687,7 +687,7 @@
                     .from('empresas')
                     .select('*')
                     .eq('email', companyEmail)
-                    .single();
+                    .maybeSingle();
                 if (!company) {
                     showAuthMessage('Empresa não encontrada.', 'error');
                     return;
@@ -697,7 +697,7 @@
                     .select('*')
                     .eq('email', userEmail)
                     .eq('id_empresa', company.id)
-                    .single();
+                    .maybeSingle();
                 if (!user) {
                     showAuthMessage('Usuário não encontrado para esta empresa.', 'error');
                     return;
@@ -1009,7 +1009,7 @@
                     .select('*')
                     .eq('session_id', currentSession.id)
                     .eq('codigo', codigo)
-                    .single();
+                    .maybeSingle();
                     
                 if (existingProduct) {
                     const newQuantity = existingProduct.quantidade_contada + quantity;
