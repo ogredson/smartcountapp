@@ -425,35 +425,22 @@
         <div id="auth-section" class="auth-container">
             <div class="auth-tabs">
                 <div class="auth-tab active" id="login-tab">Login</div>
-                <div class="auth-tab" id="register-tab">Cadastro</div>
             </div>
 
             <div id="login-form">
                 <div class="form-group">
-                    <label for="email">E-mail</label>
-                    <input type="email" id="email" placeholder="Seu e-mail" />
+                    <label for="company-email">Empresa (e-mail)</label>
+                    <input type="email" id="company-email" placeholder="E-mail da empresa" />
+                </div>
+                <div class="form-group">
+                    <label for="user-email">Usuário (e-mail)</label>
+                    <input type="email" id="user-email" placeholder="E-mail do usuário" />
                 </div>
                 <div class="form-group">
                     <label for="password">Senha</label>
                     <input type="password" id="password" placeholder="Sua senha" />
                 </div>
                 <button id="login-btn"><i class="fas fa-sign-in-alt"></i> Entrar</button>
-            </div>
-
-            <div id="register-form" class="hidden">
-                <div class="form-group">
-                    <label for="reg-name">Nome Completo</label>
-                    <input type="text" id="reg-name" placeholder="Seu nome completo" />
-                </div>
-                <div class="form-group">
-                    <label for="reg-email">E-mail</label>
-                    <input type="email" id="reg-email" placeholder="Seu e-mail" />
-                </div>
-                <div class="form-group">
-                    <label for="reg-password">Senha</label>
-                    <input type="password" id="reg-password" placeholder="Sua senha (mín. 6 caracteres)" />
-                </div>
-                <button id="register-btn"><i class="fas fa-user-plus"></i> Cadastrar</button>
             </div>
 
             <div id="auth-message" class="message-area hidden"></div>
@@ -549,9 +536,9 @@
         // Estado do app
         // =============================
         let currentUser = null;
+        let currentCompany = null;
         let currentSession = null;
         let products = [];
-        let userProfile = null;
         let activeSessions = [];
 
         // =============================
@@ -560,14 +547,11 @@
         const authSection = document.getElementById('auth-section');
         const mainApp = document.getElementById('main-app');
         const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
         const loginTab = document.getElementById('login-tab');
-        const registerTab = document.getElementById('register-tab');
         const authMessage = document.getElementById('auth-message');
         const tabs = document.querySelectorAll('.tab');
         const tabContents = document.querySelectorAll('.tab-content');
         const loginBtn = document.getElementById('login-btn');
-        const registerBtn = document.getElementById('register-btn');
         const logoutBtn = document.getElementById('logout-btn');
         const userInfoElement = document.getElementById('user-info');
 
@@ -576,41 +560,26 @@
 
 
         async function initApp() {
-            setupEventListeners(); // garantir que botões funcionem mesmo se SDK falhar
-
+            setupEventListeners();
             if (!supabase) {
                 showAuthSection();
-                showAuthMessage('Falha ao carregar o SDK do Supabase. Verifique sua conexão ou a tag do script.', 'error');
+                showAuthMessage('Falha ao carregar o SDK do Supabase.', 'error');
                 return;
             }
-
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    const user = session.user;
-                    const { data: profile } = await supabase
-                        .from('user_profiles')
-                        .select('*')
-                        .eq('id', user.id)
-                        .single();
-
-                    if (profile && profile.authorized) {
-                        currentUser = user;
-                        userProfile = profile;
-                        showMainApp();
-                        updateUserInfo();
-                        loadUserData();
-                    } else {
-                        await supabase.auth.signOut();
-                        showAuthSection();
-                    }
-                } else {
+            const storedCompany = localStorage.getItem('session_company');
+            const storedUser = localStorage.getItem('session_user');
+            if (storedCompany && storedUser) {
+                try {
+                    currentCompany = JSON.parse(storedCompany);
+                    currentUser = JSON.parse(storedUser);
+                    showMainApp();
+                    updateUserInfo();
+                    await loadUserData();
+                } catch {
                     showAuthSection();
                 }
-            } catch (err) {
-                console.error(err);
+            } else {
                 showAuthSection();
-                showAuthMessage('Não foi possível inicializar a sessão.', 'error');
             }
         }
 
@@ -624,8 +593,10 @@
         }
         
         function updateUserInfo() {
-            if (currentUser && userProfile) {
-                userInfoElement.textContent = `Usuário: ${userProfile.name}`;
+            if (currentCompany && currentUser) {
+                const companyName = currentCompany.nome || currentCompany.email || 'Empresa';
+                const userName = currentUser.nome || currentUser.email || 'Usuário';
+                userInfoElement.textContent = `Empresa: ${companyName} • Usuário: ${userName}`;
                 userInfoElement.classList.remove('hidden');
             }
         }
@@ -634,16 +605,7 @@
             // Abas de autenticação
             loginTab.addEventListener('click', () => {
                 loginTab.classList.add('active');
-                registerTab.classList.remove('active');
                 loginForm.classList.remove('hidden');
-                registerForm.classList.add('hidden');
-                authMessage.classList.add('hidden');
-            });
-            registerTab.addEventListener('click', () => {
-                registerTab.classList.add('active');
-                loginTab.classList.remove('active');
-                registerForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
                 authMessage.classList.add('hidden');
             });
 
@@ -651,13 +613,9 @@
             document.getElementById('password').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') loginBtn.click();
             });
-            document.getElementById('reg-password').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') registerBtn.click();
-            });
 
             // Botões de autenticação
             loginBtn.addEventListener('click', handleLogin);
-            registerBtn.addEventListener('click', handleRegister);
             if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
             // Abas principais
@@ -718,33 +676,48 @@
 
         async function handleLogin() {
             if (!supabase) return showAuthMessage('SDK do Supabase indisponível.', 'error');
-            const email = document.getElementById('email').value.trim();
+            const companyEmail = document.getElementById('company-email').value.trim();
+            const userEmail = document.getElementById('user-email').value.trim();
             const password = document.getElementById('password').value;
-            if (!email || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
+            if (!companyEmail || !userEmail || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
 
             loginBtn.innerHTML = '<div class="loading"></div> Entrando...';
             loginBtn.disabled = true;
             try {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-
-                const { data: profile, error: profileError } = await supabase
-                    .from('user_profiles')
+                const { data: company } = await supabase
+                    .from('empresas')
                     .select('*')
-                    .eq('id', data.user.id)
+                    .eq('email', companyEmail)
                     .single();
-                if (profileError || !profile || !profile.authorized) {
-                    showAuthMessage('Usuário não autorizado. Entre em contato com o administrador.', 'error');
-                    await supabase.auth.signOut();
+                if (!company) {
+                    showAuthMessage('Empresa não encontrada.', 'error');
                     return;
                 }
-
-                await supabase.from('session_logs').insert([{ user_id: data.user.id, action: 'login' }]);
-                currentUser = data.user;
-                userProfile = profile;
+                const { data: user } = await supabase
+                    .from('usuarios')
+                    .select('*')
+                    .eq('email', userEmail)
+                    .eq('id_empresa', company.id)
+                    .single();
+                if (!user) {
+                    showAuthMessage('Usuário não encontrado para esta empresa.', 'error');
+                    return;
+                }
+                if (user.ativo === false) {
+                    showAuthMessage('Usuário inativo.', 'error');
+                    return;
+                }
+                if (user.senha && password !== String(user.senha)) {
+                    showAuthMessage('Senha inválida.', 'error');
+                    return;
+                }
+                currentCompany = company;
+                currentUser = user;
+                localStorage.setItem('session_company', JSON.stringify(company));
+                localStorage.setItem('session_user', JSON.stringify(user));
                 showMainApp();
                 updateUserInfo();
-                loadUserData();
+                await loadUserData();
             } catch (err) {
                 console.error(err);
                 showAuthMessage(err.message || 'Erro inesperado. Tente novamente.', 'error');
@@ -754,52 +727,17 @@
             }
         }
 
-        async function handleRegister() {
-            if (!supabase) return showAuthMessage('SDK do Supabase indisponível.', 'error');
-            const name = document.getElementById('reg-name').value.trim();
-            const email = document.getElementById('reg-email').value.trim();
-            const password = document.getElementById('reg-password').value;
-            if (!name || !email || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
-            if (password.length < 6) return showAuthMessage('A senha deve ter pelo menos 6 caracteres.', 'error');
-
-            registerBtn.innerHTML = '<div class="loading"></div> Cadastrando...';
-            registerBtn.disabled = true;
-            try {
-                const { data, error } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: { data: { name } },
-                });
-                if (error) throw error;
-
-                const userId = data?.user?.id;
-                if (userId) {
-                    const { error: profileError } = await supabase.from('user_profiles').insert([
-                        { id: userId, name, authorized: false, import_limit: 10 },
-                    ]);
-                    if (profileError) throw profileError;
-                }
-                showAuthMessage('Cadastro realizado! Aguarde a autorização de um administrador.', 'success');
-            } catch (err) {
-                console.error(err);
-                showAuthMessage(err.message || 'Erro inesperado. Tente novamente.', 'error');
-            } finally {
-                registerBtn.innerHTML = '<i class="fas fa-user-plus"></i> Cadastrar';
-                registerBtn.disabled = false;
-            }
-        }
+        
 
         async function handleLogout() {
-            if (currentUser && supabase) {
-                await supabase.from('session_logs').insert([{ user_id: currentUser.id, action: 'logout' }]);
-                await supabase.auth.signOut();
-            }
             currentUser = null;
+            currentCompany = null;
             currentSession = null;
-            userProfile = null;
             products = [];
             showAuthSection();
             userInfoElement.classList.add('hidden');
+            localStorage.removeItem('session_company');
+            localStorage.removeItem('session_user');
         }
 
         function showAuthMessage(message, type) {
@@ -822,13 +760,14 @@
         }
 
         async function loadActiveSessions() {
-            if (!supabase || !currentUser) return;
+            if (!supabase || !currentUser || !currentCompany) return;
             
             try {
                 const { data: sessions, error } = await supabase
                     .from('counting_sessions')
                     .select('*')
-                    .eq('user_id', currentUser.id)
+                    .eq('id_empresa', currentCompany.id)
+                    .eq('id_usuario', currentUser.id)
                     .eq('status', 'active')
                     .order('created_at', { ascending: false });
                     
@@ -1195,41 +1134,18 @@
 
 
         async function loadUserData() {
-            if (!supabase || !currentUser) return;
-            
-            // Carregar dados do usuário
-            const { data: userData, error: userError } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('id', currentUser.id)
-                .single();
-                
-            if (userError) {
-                console.error('Erro ao carregar dados do usuário:', userError);
-                return;
-            }
-            
-            // Atualizar interface com dados do usuário
-            if (userData) {
-                const userNameElement = document.getElementById('user-name');
-                if (userNameElement) {
-                    userNameElement.textContent = userData.name || userData.email;
-                }
-            }
-            
-            // Carregar sessões ativas para o grid
+            if (!supabase || !currentUser || !currentCompany) return;
             await loadActiveSessions();
-            
-            // Carregar sessões ativas para funcionalidade existente
-            const { data: activeSessions } = await supabase
+            const { data: active } = await supabase
                 .from('counting_sessions')
                 .select('*')
-                .eq('user_id', currentUser.id)
+                .eq('id_empresa', currentCompany.id)
+                .eq('id_usuario', currentUser.id)
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
                 .limit(1);
-            if (activeSessions && activeSessions.length > 0) {
-                currentSession = activeSessions[0];
+            if (active && active.length > 0) {
+                currentSession = active[0];
                 const { data: sessionProducts } = await supabase
                     .from('products')
                     .select('*')
@@ -1243,23 +1159,16 @@
                         is_counted: p.is_counted
                     }));
                 }
-                // Controle de botões removido
-                
-                // Mostrar card de bipagens avulsas se for contagem avulsa
                 if (currentSession.count_type === 'avulsa') {
                     document.getElementById('avulsa-scans-card').classList.remove('hidden');
-                    
-                    // Carregar bipagens já existentes
                     const { data: existingScans } = await supabase
                         .from('scans')
                         .select('*')
                         .eq('session_id', currentSession.id)
                         .order('created_at', { ascending: false });
-                    
                     if (existingScans && existingScans.length > 0) {
                         const avulsaList = document.getElementById('avulsa-scans-list');
-                        avulsaList.innerHTML = ''; // Limpar lista atual
-                        
+                        avulsaList.innerHTML = '';
                         existingScans.forEach(scan => {
                             const scanItem = document.createElement('div');
                             scanItem.className = 'scan-item';
@@ -1271,35 +1180,22 @@
                         });
                     }
                 }
-                
-                // Atualizar lista de produtos na interface
                 if (currentSession && currentSession.count_type === 'normal' && products.length > 0) {
                     renderProducts();
                 }
             } else {
-                // Limpar interface quando não há sessão ativa (sessão foi encerrada)
                 currentSession = null;
                 products = [];
                 renderProducts();
-                
-                // Controle de botões removido
-                
-                // Ocultar card de bipagens avulsas
                 document.getElementById('avulsa-scans-card').classList.add('hidden');
-                
-                // Limpar lista de bipagens avulsas
                 const avulsaList = document.getElementById('avulsa-scans-list');
                 if (avulsaList) {
                     avulsaList.innerHTML = '';
                 }
-                
-                // Limpar campo de código de barras
                 const barcodeInput = document.getElementById('barcode-input');
                 if (barcodeInput) {
                     barcodeInput.value = '';
                 }
-                
-                // Resetar quantidade para 1
                 const quantityInput = document.getElementById('quantity-input');
                 if (quantityInput) {
                     quantityInput.value = '1';
