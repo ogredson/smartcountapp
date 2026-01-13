@@ -754,6 +754,40 @@ as $$
     coalesce((select sum(p.scanned_qty) from public.products p where p.session_id in (select id from sessions)), 0) as scanned
 $$;
 grant execute on function public.get_dashboard_stats_for_current_user() to authenticated;
+create or replace function public.insert_scan(
+  p_session_id uuid,
+  p_code text,
+  p_quantity integer,
+  p_description text
+)
+returns public.scans
+language sql
+security definer
+volatile
+set search_path = public
+as $$
+  with me as (
+    select t.id_empresa, t.id_usuario, t.role
+    from public.user_tenants t
+    where t.auth_user_id = auth.uid()
+    limit 1
+  ),
+  sess as (
+    select cs.id, cs.id_empresa, cs.id_usuario
+    from public.counting_sessions cs
+    join me on me.id_empresa = cs.id_empresa
+    where cs.id = p_session_id
+    limit 1
+  ),
+  ins as (
+    insert into public.scans (session_id, code, quantity, description)
+    select p_session_id, p_code, coalesce(p_quantity, 1), nullif(p_description,'')
+    from sess
+    returning *
+  )
+  select * from ins;
+$$;
+grant execute on function public.insert_scan(uuid, text, integer, text) to authenticated;
 create or replace function public.delete_counting_session(p_session_id uuid)
 returns void
 language plpgsql
