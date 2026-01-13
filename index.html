@@ -767,7 +767,7 @@
             }
             if (error) {
                 const { data: sessionsRpc } = await sb.rpc('get_counting_sessions_for_current_user');
-                sessions = sessionsRpc || [];
+                sessions = (sessionsRpc || []).filter(s => s.status === 'active' && (currentUser && currentUser.role !== 'admin' ? s.id_usuario === currentUser.id : true));
             }
             activeSessions = sessions || [];
             renderActiveSessions();
