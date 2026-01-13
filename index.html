@@ -460,9 +460,6 @@
                 <div id="contagem" class="tab-content active">
                     <div class="card">
                         <div class="card-title"><i class="fas fa-list"></i> Contagens Ativas</div>
-                        <div style="margin: 0.5rem 0;">
-                            <button id="create-session-btn"><i class="fas fa-plus"></i> Nova Sessão</button>
-                        </div>
                         <div id="sessions-grid">
                             <div class="grid-header">
                                 <div class="grid-cell header">Nome da Sessão</div>
@@ -512,10 +509,6 @@
                 <div id="produtos" class="tab-content">
                     <div class="card">
                         <div class="card-title"><i class="fas fa-boxes"></i> Lista de Produtos</div>
-                        <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem;">
-                            <input type="file" id="import-file" accept=".json" />
-                            <button id="import-products-btn"><i class="fas fa-file-upload"></i> Importar Produtos</button>
-                        </div>
                         <div id="products-list" class="product-list">
                             <p id="no-products-msg">Aguardando sincronização de dados...</p>
                         </div>
@@ -647,11 +640,6 @@
                 if (e.key === 'Enter') document.getElementById('add-scan-btn').click();
             });
             document.getElementById('add-scan-btn').addEventListener('click', addScan);
-            const createSessionBtn = document.getElementById('create-session-btn');
-            if (createSessionBtn) createSessionBtn.addEventListener('click', createNewSession);
-            const importBtn = document.getElementById('import-products-btn');
-            const importFile = document.getElementById('import-file');
-            if (importBtn && importFile) importBtn.addEventListener('click', () => importProducts(importFile));
 
             // Menu hambúrguer
             const hamburger = document.getElementById('hamburger');
@@ -817,9 +805,6 @@
                             <h3 class="session-name">${session.session_name || 'Sessão sem nome'}</h3>
                             <p class="session-subtitle">${typeLabel} • ${progress}% concluído</p>
                         </div>
-                        <div>
-                            <button class="delete-session-btn" data-session-id="${session.id}" title="Excluir">🗑️</button>
-                        </div>
                     </div>
                     <div class="session-stats">
                         <div class="stat-item">
@@ -935,25 +920,6 @@
                 });
                 
                 sessionsList.appendChild(card);
-                
-                const delBtn = card.querySelector('.delete-session-btn');
-                if (delBtn) {
-                    delBtn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        if (!confirm('Excluir esta sessão?')) return;
-                        const { error } = await sb.rpc('delete_counting_session', { p_session_id: session.id });
-                        if (error) {
-                            showMessage('Erro ao excluir sessão', 'error');
-                            return;
-                        }
-                        if (currentSession && currentSession.id === session.id) {
-                            currentSession = null;
-                            products = [];
-                            renderProducts();
-                        }
-                        await loadActiveSessions();
-                    });
-                }
             });
         }
 
@@ -1011,64 +977,6 @@
             } catch (err) {
                 console.error('Erro ao finalizar sessão:', err);
                 showMessage('Erro inesperado ao finalizar sessão.', 'error');
-            }
-        }
-        
-        async function createNewSession() {
-            if (!sb || !currentUser || !currentCompany) return showMessage('Sessão indisponível.', 'error');
-            const name = prompt('Nome da sessão:') || '';
-            if (!name.trim()) return;
-            const type = prompt('Tipo (normal/avulsa):', 'normal') || 'normal';
-            const desc = '';
-            const arquivo = '';
-            const { data, error } = await sb.rpc('create_counting_session', {
-                p_id_usuario: currentUser.id,
-                p_id_empresa: currentCompany.id,
-                p_session_name: name.trim(),
-                p_description: desc,
-                p_count_type: type === 'avulsa' ? 'avulsa' : 'normal',
-                p_arquivo_uploaded: arquivo
-            });
-            if (error) {
-                showMessage('Erro ao criar sessão', 'error');
-                return;
-            }
-            await loadActiveSessions();
-        }
-        
-        async function importProducts(fileInput) {
-            if (!sb || !currentSession) return showMessage('Selecione uma sessão.', 'error');
-            if (!fileInput || !fileInput.files || fileInput.files.length === 0) return showMessage('Escolha um arquivo JSON.', 'error');
-            const file = fileInput.files[0];
-            try {
-                const text = await file.text();
-                const payload = JSON.parse(text);
-                const { error } = await sb.rpc('insert_products_for_session', { p_session_id: currentSession.id, p_products: payload });
-                if (error) {
-                    showMessage('Erro ao importar produtos', 'error');
-                    return;
-                }
-                await sb.rpc('update_session_total', { p_session_id: currentSession.id });
-                await sb.rpc('update_session_file_info', { p_session_id: currentSession.id, p_file_name: file.name, p_session_name: currentSession.session_name || null });
-                const res = await sb.from('products').select('*').eq('session_id', currentSession.id);
-                const sessionProducts = res.data || [];
-                if (sessionProducts && sessionProducts.length > 0) {
-                    products = sessionProducts.map(p => ({
-                        id: p.id,
-                        codigo: p.codigo,
-                        descricao: p.descricao,
-                        quantidade_atual: p.quantidade_atual,
-                        quantidade_contada: p.quantidade_contada,
-                        is_counted: p.is_counted,
-                        scanned_qty: p.scanned_qty
-                    }));
-                }
-                renderProducts();
-                showMessage('Importação concluída.', 'success');
-            } catch (e) {
-                showMessage('Arquivo inválido.', 'error');
-            } finally {
-                fileInput.value = '';
             }
         }
 
@@ -1215,25 +1123,9 @@
                     </div>
                     <div class="product-count">
                         ${product.is_counted ? `<span class="count-badge">${product.quantidade_contada}</span>` : '<span style="color: var(--danger);">Pendente</span>'}
-                        <button class="delete-product-btn" data-id="${product.id || ''}">Excluir</button>
                     </div>
                 `;
                 productsList.appendChild(item);
-            });
-            const delBtns = productsList.querySelectorAll('.delete-product-btn');
-            delBtns.forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const pid = btn.getAttribute('data-id');
-                    if (!pid) return;
-                    if (!confirm('Excluir este produto?')) return;
-                    const { error } = await sb.rpc('delete_product', { p_product_id: pid });
-                    if (error) {
-                        showMessage('Erro ao excluir produto', 'error');
-                        return;
-                    }
-                    products = products.filter(p => p.id !== pid);
-                    renderProducts();
-                });
             });
         }
 
