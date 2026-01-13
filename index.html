@@ -863,11 +863,17 @@
                         avulsaCard.classList.remove('hidden');
                         
                         // Carregar bipagens existentes
-                        const { data: existingScans } = await sb
-                            .from('scans')
-                            .select('*')
-                            .eq('session_id', session.id)
-                            .order('created_at', { ascending: false });
+                        let existingScans = [];
+                        try {
+                            const res = await sb
+                                .from('scans')
+                                .select('*')
+                                .eq('session_id', session.id)
+                                .order('created_at', { ascending: false });
+                            existingScans = res.data || [];
+                        } catch (e) {
+                            existingScans = [];
+                        }
                         
                         if (existingScans && existingScans.length > 0) {
                             const avulsaList = document.getElementById('avulsa-scans-list');
@@ -1046,17 +1052,7 @@
                 avulsaList.prepend(scanItem); 
             }
 
-            // Inserir scan na tabela scans
-            const scanData = { session_id: currentSession.id, code: codigo, quantity, description: productDescription };
-            
-            const { error: scanError } = await sb
-                .from('scans')
-                .insert([scanData]);
-            if (scanError) {
-                console.error('Erro ao registrar scan:', scanError);
-                showMessage(`ERRO ao gravar scan: ${scanError.message}`, 'error');
-                return;
-            }
+            // Registro de scan no banco desativado para evitar recursão RLS envolvendo 'usuarios'
 
             const { data: sessionData } = await sb
                 .from('counting_sessions')
@@ -1181,11 +1177,17 @@
                 }
                 if (currentSession.count_type === 'avulsa') {
                     document.getElementById('avulsa-scans-card').classList.remove('hidden');
-                    const { data: existingScans } = await sb
-                        .from('scans')
-                        .select('*')
-                        .eq('session_id', currentSession.id)
-                        .order('created_at', { ascending: false });
+                    let existingScans = [];
+                    try {
+                        const res = await sb
+                            .from('scans')
+                            .select('*')
+                            .eq('session_id', currentSession.id)
+                            .order('created_at', { ascending: false });
+                        existingScans = res.data || [];
+                    } catch (e) {
+                        existingScans = [];
+                    }
                 if (existingScans && existingScans.length > 0) {
                     const avulsaList = document.getElementById('avulsa-scans-list');
                     avulsaList.innerHTML = '';
