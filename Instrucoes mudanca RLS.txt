@@ -1,0 +1,91 @@
+Agora estou usando RLS, políticas e RPCs; Abaixo estão instruções focadas apenas em ajustes de código do novo projeto para funcionar corretamente com essa estrutura.
+
+Princípios
+
+- Sempre autenticar com Supabase Auth e mapear o usuário para a empresa via RPC.
+- Consultas diretas funcionam quando RLS permite; caso contrário, usar RPC de fallback.
+- Nunca referenciar usuarios diretamente nas telas (evita recursão RLS); usar user_tenants indiretamente por meio dos RPCs.
+- Operações de escrita (criar sessão, importar, excluir) devem ser via RPC security definer.
+RPCs disponíveis no banco (usar no novo projeto)
+
+- Leitura:
+  - get_usuario_perfil
+  - get_empresa_for_current_user
+  - get_counting_sessions_for_current_user
+  - get_products_for_empresa(p_session_id uuid default null)
+  - get_dashboard_stats_for_current_user
+- Escrita:
+  - upsert_user_tenant
+  - create_counting_session(p_id_usuario, p_id_empresa, p_session_name, p_description, p_count_type, p_arquivo_uploaded text)
+  - insert_products_for_session(p_session_id uuid, p_products jsonb)
+  - update_session_total(p_session_id uuid)
+  - update_session_file_info(p_session_id uuid, p_file_name text, p_session_name text)
+  - delete_counting_session(p_session_id uuid)
+  - delete_product(p_product_id uuid)
+Checklist de Alterações em Fonte
+
+- Inicialização e Login
+  - Após signInWithPassword, obtenha o perfil:
+    - Primeiro: RPC get_usuario_perfil (fallback: busca por e-mail se necessário).
+  - Obtenha a empresa:
+    - Primeiro: RPC get_empresa_for_current_user (fallback: SELECT empresas by id).
+  - Atualize o vínculo do tenant:
+    - Chamar RPC upsert_user_tenant logo após definir currentUser/currentEmpresa.
+- Listagem de Sessões
+  - Tente SELECT em counting_sessions filtrando id_empresa e (se não admin) id_usuario.
+  - Se erro, use RPC get_counting_sessions_for_current_user e preencha grid/combos.
+- Criação de Sessão
+  - Use RPC create_counting_session (com p_arquivo_uploaded quando houver arquivo).
+  - Evite depender de UPDATE direto em total_items aqui; total será calculado após importação.
+  
+ Exemplos de Código (padrão a replicar)
+
+- Login essencial (resumo):
+
+// Após signIn:
+const authUserId = signInData.user.id;
+
+// Perfil
+let { data: perfil, error: perfilErr } = await supabaseClient.rpc('get_usuario_perfil');
+if (perfilErr || !perfil) {
+  const { data: byEmail } = await supabaseClient.from('usuarios').select('*').eq('email', signInData.user.email).single();
+  perfil = Array.isArray(perfil) ? perfil[0] : perfil || byEmail;
+}
+currentUser = perfil;
+
+// Empresa
+let { data: emp, error: empErr } = await supabaseClient.rpc('get_empresa_for_current_user');
+currentEmpresa = Array.isArray(emp) ? emp[0] : emp;
+
+// Garantir mapeamento do tenant
+await supabaseClient.rpc('upsert_user_tenant');
+
+Carregar sessões com fallback:
+
+let { data, error } = await supabaseClient
+  .from('counting_sessions')
+  .select('*')
+  .eq('id_empresa', currentEmpresa.id)
+  .order('created_at', { ascending: false });
+let sessions = data || [];
+if (error) {
+  const { data: sessionsRpc } = await supabaseClient.rpc('get_counting_sessions_for_current_user');
+  sessions = sessionsRpc || [];
+}
+
+boas Práticas (evitam erros recorrentes)
+
+- Variáveis que recebem fallback: use let, não const (evita “Assignment to constant variable”).
+- Sempre trate arrays de retorno de RPC: alguns retornam array; normalize para um único objeto quando necessário.
+- Valide UUID de produto/sessão antes de excluir.
+- Testes REST: inclua apikey no header; chamadas sem apikey falham com “No API key found in request”.
+
+Sequência sugerida para integrar no projeto
+
+- 1. Implementar fluxo de login (perfil/empresa + upsert_user_tenant).
+- 2. Atualizar listagem de sessões (fallback RPC).
+- 3. Criar sessão via RPC.
+- 4. Produtos: listar com fallback RPC e excluir via RPC.
+- 5. Estatísticas: combo por RPC, dados por RPC.
+- 6. Dashboard: usar RPC agregador.
+- 7. Revisar erros de reatribuição const e validar IDs.

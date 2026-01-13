@@ -435,12 +435,8 @@
 
             <div id="login-form">
                 <div class="form-group">
-                    <label for="company-email">Empresa (e-mail)</label>
-                    <input type="email" id="company-email" placeholder="E-mail da empresa" />
-                </div>
-                <div class="form-group">
-                    <label for="user-email">Usuário (e-mail)</label>
-                    <input type="email" id="user-email" placeholder="E-mail do usuário" />
+                    <label for="email">E-mail</label>
+                    <input type="email" id="email" placeholder="Seu e-mail" />
                 </div>
                 <div class="form-group">
                     <label for="password">Senha</label>
@@ -571,20 +567,27 @@
                 showAuthMessage('Falha ao carregar o SDK do Supabase.', 'error');
                 return;
             }
-            const storedCompany = localStorage.getItem('session_company');
-            const storedUser = localStorage.getItem('session_user');
-            if (storedCompany && storedUser) {
-                try {
-                    currentCompany = JSON.parse(storedCompany);
-                    currentUser = JSON.parse(storedUser);
+            try {
+                const { data: { session } } = await sb.auth.getSession();
+                if (session) {
+                    let { data: perfil } = await sb.rpc('get_usuario_perfil');
+                    if (!perfil) {
+                        const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', session.user.email).maybeSingle();
+                        perfil = Array.isArray(perfil) ? perfil[0] : perfil || byEmail;
+                    }
+                    currentUser = perfil;
+                    let { data: emp } = await sb.rpc('get_empresa_for_current_user');
+                    currentCompany = Array.isArray(emp) ? emp[0] : emp;
+                    await sb.rpc('upsert_user_tenant');
                     showMainApp();
                     updateUserInfo();
                     await loadUserData();
-                } catch {
+                } else {
                     showAuthSection();
                 }
-            } else {
+            } catch (e) {
                 showAuthSection();
+                showAuthMessage('Não foi possível inicializar a sessão.', 'error');
             }
         }
 
@@ -681,50 +684,28 @@
 
         async function handleLogin() {
             if (!sb) return showAuthMessage('SDK do Supabase indisponível.', 'error');
-            const companyEmail = document.getElementById('company-email').value.trim();
-            const userEmail = document.getElementById('user-email').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            if (!companyEmail || !userEmail || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
+            if (!email || !password) return showAuthMessage('Por favor, preencha todos os campos.', 'error');
 
             loginBtn.innerHTML = '<div class="loading"></div> Entrando...';
             loginBtn.disabled = true;
             try {
-                const { data: company } = await sb
-                    .from('empresas')
-                    .select('*')
-                    .eq('email', companyEmail)
-                    .maybeSingle();
-                if (!company) {
-                    showAuthMessage('Empresa não encontrada.', 'error');
-                    return;
+                const { data, error } = await sb.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                let { data: perfil } = await sb.rpc('get_usuario_perfil');
+                if (!perfil) {
+                    const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', email).maybeSingle();
+                    perfil = Array.isArray(perfil) ? perfil[0] : perfil || byEmail;
                 }
-                const { data: user } = await sb
-                    .from('usuarios')
-                    .select('*')
-                    .eq('email', userEmail)
-                    .eq('id_empresa', company.id)
-                    .maybeSingle();
-                if (!user) {
-                    showAuthMessage('Usuário não encontrado para esta empresa.', 'error');
-                    return;
-                }
-                if (user.ativo === false) {
-                    showAuthMessage('Usuário inativo.', 'error');
-                    return;
-                }
-                if (user.senha && password !== String(user.senha)) {
-                    showAuthMessage('Senha inválida.', 'error');
-                    return;
-                }
-                currentCompany = company;
-                currentUser = user;
-                localStorage.setItem('session_company', JSON.stringify(company));
-                localStorage.setItem('session_user', JSON.stringify(user));
+                currentUser = perfil;
+                let { data: emp } = await sb.rpc('get_empresa_for_current_user');
+                currentCompany = Array.isArray(emp) ? emp[0] : emp;
+                await sb.rpc('upsert_user_tenant');
                 showMainApp();
                 updateUserInfo();
                 await loadUserData();
             } catch (err) {
-                console.error(err);
                 showAuthMessage(err.message || 'Erro inesperado. Tente novamente.', 'error');
             } finally {
                 loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar';
@@ -766,26 +747,30 @@
 
         async function loadActiveSessions() {
             if (!sb || !currentUser || !currentCompany) return;
-            
+            let sessions = [];
+            let error = null;
             try {
-                const { data: sessions, error } = await sb
+                let q = sb
                     .from('counting_sessions')
                     .select('*')
                     .eq('id_empresa', currentCompany.id)
-                    .eq('id_usuario', currentUser.id)
                     .eq('status', 'active')
                     .order('created_at', { ascending: false });
-                    
-                if (error) {
-                    console.error('Erro ao carregar sessões:', error);
-                    return;
+                if (currentUser && currentUser.role !== 'admin') {
+                    q = q.eq('id_usuario', currentUser.id);
                 }
-                
-                activeSessions = sessions || [];
-                renderActiveSessions();
-            } catch (err) {
-                console.error('Erro ao carregar sessões ativas:', err);
+                const res = await q;
+                sessions = res.data || [];
+                error = res.error || null;
+            } catch (e) {
+                error = e;
             }
+            if (error) {
+                const { data: sessionsRpc } = await sb.rpc('get_counting_sessions_for_current_user');
+                sessions = sessionsRpc || [];
+            }
+            activeSessions = sessions || [];
+            renderActiveSessions();
         }
         
         function renderActiveSessions() {
@@ -844,10 +829,22 @@
                     
                     // Carregar produtos da sessão se for contagem normal
                     if (session.count_type === 'normal') {
-                        const { data: sessionProducts } = await sb
-                            .from('products')
-                            .select('*')
-                            .eq('session_id', session.id);
+                        let sessionProducts = [];
+                        let err = null;
+                        try {
+                            const res = await sb
+                                .from('products')
+                                .select('*')
+                                .eq('session_id', session.id);
+                            sessionProducts = res.data || [];
+                            err = res.error || null;
+                        } catch (e) {
+                            err = e;
+                        }
+                        if (err) {
+                            const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: session.id });
+                            sessionProducts = rpcProducts || [];
+                        }
                         if (sessionProducts && sessionProducts.length > 0) {
                             products = sessionProducts.map(p => ({
                                 codigo: p.codigo,
@@ -1156,10 +1153,22 @@
                 .limit(1);
             if (active && active.length > 0) {
                 currentSession = active[0];
-                const { data: sessionProducts } = await sb
-                    .from('products')
-                    .select('*')
-                    .eq('session_id', currentSession.id);
+                let sessionProducts = [];
+                let err = null;
+                try {
+                    const res = await sb
+                        .from('products')
+                        .select('*')
+                        .eq('session_id', currentSession.id);
+                    sessionProducts = res.data || [];
+                    err = res.error || null;
+                } catch (e) {
+                    err = e;
+                }
+                if (err) {
+                    const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: currentSession.id });
+                    sessionProducts = rpcProducts || [];
+                }
                 if (sessionProducts && sessionProducts.length > 0) {
                     products = sessionProducts.map(p => ({
                         codigo: p.codigo,
