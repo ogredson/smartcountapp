@@ -1063,31 +1063,39 @@
                 return;
             }
 
-            const { data: sessionData } = await sb
-                .from('counting_sessions')
-                .select('counted_items, scanned_items')
-                .eq('id', currentSession.id)
-                .single();
+            let sessionData = null;
+            try {
+                const { data: sessionsRpc } = await sb.rpc('get_counting_sessions_for_current_user');
+                const sess = (sessionsRpc || []).find(s => String(s.id) === String(currentSession.id));
+                sessionData = sess ? { counted_items: sess.counted_items, scanned_items: sess.scanned_items } : null;
+            } catch (e) {
+                sessionData = null;
+            }
                 
             const newCountedItems = currentSession.count_type === 'normal' ? 
                 products.filter(p => p.is_counted).length : 
                 (sessionData?.counted_items || 0) + (product ? 0 : 1);
             const newScannedItems = (sessionData?.scanned_items || 0) + quantity;
             
-            const { error: sessionError } = await sb
-                .from('counting_sessions')
-                .update({ counted_items: newCountedItems, scanned_items: newScannedItems })
-                .eq('id', currentSession.id);
-            if (sessionError) console.error('Erro ao atualizar sessão:', sessionError);
+            const { error: sessionError } = await sb.rpc('update_session_counts', {
+                p_session_id: currentSession.id,
+                p_counted_items: newCountedItems,
+                p_scanned_items: newScannedItems
+            });
+            if (sessionError) {
+                console.error('Erro ao atualizar sessão:', sessionError);
+                showMessage('Não foi possível persistir contadores agora. Continuando com atualização local.', 'error');
+            }
             
             currentSession.counted_items = newCountedItems;
             currentSession.scanned_items = newScannedItems;
-            const idx = activeSessions.findIndex(s => s.id === currentSession.id);
-            if (idx >= 0) {
-                activeSessions[idx].counted_items = newCountedItems;
-                activeSessions[idx].scanned_items = newScannedItems;
-            }
+            activeSessions = (activeSessions || []).map(s => {
+                return (String(s.id) === String(currentSession.id))
+                    ? { ...s, counted_items: newCountedItems, scanned_items: newScannedItems }
+                    : s;
+            });
             renderActiveSessions();
+            await loadActiveSessions();
             
             showMessage(`Produto ${codigo} (${productDescription}) adicionado com quantidade ${quantity}.`, 'success');
             barcodeInput.value = '';
