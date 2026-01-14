@@ -208,6 +208,20 @@
         .session-info strong {
             font-weight: 700;
         }
+        .refresh-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            float: right;
+        }
+        .refresh-btn:hover {
+            opacity: 0.9;
+        }
         
         /* Estilos para o grid de sessões */
         #sessions-grid {
@@ -459,7 +473,7 @@
             <div class="container">
                 <div id="contagem" class="tab-content active">
                     <div class="card">
-                        <div class="card-title"><i class="fas fa-list"></i> Contagens Ativas</div>
+                        <div class="card-title"><i class="fas fa-list"></i> Contagens Ativas <button id="refresh-counts-btn" class="refresh-btn"><i class="fas fa-sync-alt"></i> Atualizar contagens</button></div>
                         <div id="sessions-grid">
                             <div class="grid-header">
                                 <div class="grid-cell header">Nome da Sessão</div>
@@ -573,9 +587,10 @@
                 if (session) {
                     authEmail = session.user.email;
                     let { data: perfil } = await sb.rpc('get_usuario_perfil');
+                    perfil = Array.isArray(perfil) ? perfil[0] : perfil;
                     if (!perfil) {
                         const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', session.user.email).maybeSingle();
-                        perfil = Array.isArray(perfil) ? perfil[0] : perfil || byEmail;
+                        perfil = byEmail;
                     }
                     currentUser = perfil;
                     let { data: emp } = await sb.rpc('get_empresa_for_current_user');
@@ -647,6 +662,19 @@
                 if (e.key === 'Enter') document.getElementById('add-scan-btn').click();
             });
             document.getElementById('add-scan-btn').addEventListener('click', addScan);
+            const refreshBtn = document.getElementById('refresh-counts-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', async () => {
+                    refreshBtn.disabled = true;
+                    refreshBtn.innerHTML = '<div class="loading"></div> Atualizando...';
+                    await loadActiveSessions();
+                    if (currentSession && currentSession.count_type === 'normal') {
+                        renderProducts();
+                    }
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Atualizar contagens';
+                    refreshBtn.disabled = false;
+                });
+            }
 
             // Menu hambúrguer
             const hamburger = document.getElementById('hamburger');
@@ -702,9 +730,10 @@
                 if (error) throw error;
                 authEmail = email;
                 let { data: perfil } = await sb.rpc('get_usuario_perfil');
+                perfil = Array.isArray(perfil) ? perfil[0] : perfil;
                 if (!perfil) {
                     const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', email).maybeSingle();
-                    perfil = Array.isArray(perfil) ? perfil[0] : perfil || byEmail;
+                    perfil = byEmail;
                 }
                 currentUser = perfil;
                 let { data: emp } = await sb.rpc('get_empresa_for_current_user');
