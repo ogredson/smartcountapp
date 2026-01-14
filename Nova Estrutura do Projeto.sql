@@ -974,3 +974,59 @@ begin
 end;
 $$;
 grant execute on function public.update_session_counts(uuid, integer, integer) to authenticated;
+create or replace function public.update_product_counts(
+  p_session_id uuid,
+  p_codigo text,
+  p_new_quantidade_contada integer,
+  p_new_scanned_qty integer,
+  p_is_counted boolean default true
+)
+returns void
+language plpgsql
+security definer
+volatile
+set search_path = public
+as $$
+declare
+  v_emp bigint;
+  v_owner bigint;
+  v_role text;
+begin
+  select cs.id_empresa, cs.id_usuario into v_emp, v_owner
+  from public.counting_sessions cs
+  where cs.id = p_session_id;
+
+  if v_emp is null then
+    raise exception 'Sessão não encontrada';
+  end if;
+
+  select t.role into v_role
+  from public.user_tenants t
+  where t.auth_user_id = auth.uid()
+    and t.id_empresa = v_emp
+  limit 1;
+
+  if v_role is null then
+    raise exception 'Permissão negada';
+  end if;
+
+  if v_role <> 'admin' then
+    perform 1
+    from public.user_tenants t
+    where t.auth_user_id = auth.uid()
+      and t.id_usuario = v_owner
+      and t.id_empresa = v_emp;
+    if not found then
+      raise exception 'Permissão negada';
+    end if;
+  end if;
+
+  update public.products p
+  set quantidade_contada = p_new_quantidade_contada,
+      scanned_qty = p_new_scanned_qty,
+      is_counted = coalesce(p_is_counted, true)
+  where p.session_id = p_session_id
+    and p.codigo = p_codigo;
+end;
+$$;
+grant execute on function public.update_product_counts(uuid, text, integer, integer, boolean) to authenticated;

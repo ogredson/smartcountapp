@@ -1013,12 +1013,17 @@
                 product.scanned_qty = newScannedQty;
                 productDescription = product.descricao;
                 
-                const { error } = await sb
-                    .from('products')
-                    .update({ quantidade_contada: product.quantidade_contada, is_counted: true, scanned_qty: newScannedQty })
-                    .eq('session_id', currentSession.id)
-                    .eq('codigo', codigo);
-                if (error) console.error('Erro ao atualizar produto:', error);
+                const { error } = await sb.rpc('update_product_counts', {
+                    p_session_id: currentSession.id,
+                    p_codigo: codigo,
+                    p_new_quantidade_contada: product.quantidade_contada,
+                    p_new_scanned_qty: newScannedQty,
+                    p_is_counted: true
+                });
+                if (error) {
+                    console.error('Erro ao atualizar produto:', error);
+                    showMessage('Falha ao atualizar produto. A sessão continua.', 'error');
+                }
             } else {
                 const { data: existingProduct } = await sb
                     .from('products')
@@ -1030,11 +1035,17 @@
                 if (existingProduct) {
                     const newQuantity = existingProduct.quantidade_contada + quantity;
                     const newScannedQty = (existingProduct.scanned_qty || 0) + quantity;
-                    const { error } = await sb
-                        .from('products')
-                        .update({ quantidade_contada: newQuantity, is_counted: true, scanned_qty: newScannedQty })
-                        .eq('id', existingProduct.id);
-                    if (error) console.error('Erro ao atualizar produto:', error);
+                    const { error } = await sb.rpc('update_product_counts', {
+                        p_session_id: currentSession.id,
+                        p_codigo: codigo,
+                        p_new_quantidade_contada: newQuantity,
+                        p_new_scanned_qty: newScannedQty,
+                        p_is_counted: true
+                    });
+                    if (error) {
+                        console.error('Erro ao atualizar produto:', error);
+                        showMessage('Falha ao atualizar produto. A sessão continua.', 'error');
+                    }
                     productDescription = existingProduct.descricao;
                 } else {
                     const { data: newProduct, error } = await sb
