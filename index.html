@@ -522,7 +522,7 @@
 
                 <div id="produtos" class="tab-content">
                     <div class="card">
-                        <div class="card-title"><i class="fas fa-boxes"></i> Lista de Produtos</div>
+                        <div class="card-title"><i class="fas fa-boxes"></i> Lista de Produtos <button id="refresh-products-btn" class="refresh-btn"><i class="fas fa-sync-alt"></i> Atualizar produtos</button></div>
                         <div id="products-list" class="product-list">
                             <p id="no-products-msg">Aguardando sincronização de dados...</p>
                         </div>
@@ -668,11 +668,21 @@
                     refreshBtn.disabled = true;
                     refreshBtn.innerHTML = '<div class="loading"></div> Atualizando...';
                     await loadActiveSessions();
-                    if (currentSession && currentSession.count_type === 'normal') {
-                        renderProducts();
+                    if (currentSession) {
+                        await loadProductsForCurrentSession();
                     }
                     refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Atualizar contagens';
                     refreshBtn.disabled = false;
+                });
+            }
+            const refreshProductsBtn = document.getElementById('refresh-products-btn');
+            if (refreshProductsBtn) {
+                refreshProductsBtn.addEventListener('click', async () => {
+                    refreshProductsBtn.disabled = true;
+                    refreshProductsBtn.innerHTML = '<div class="loading"></div> Atualizando...';
+                    await loadProductsForCurrentSession();
+                    refreshProductsBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Atualizar produtos';
+                    refreshProductsBtn.disabled = false;
                 });
             }
 
@@ -778,7 +788,13 @@
             const content = document.getElementById(tabName);
             if (tab) tab.classList.add('active');
             if (content) content.classList.add('active');
-            if (tabName === 'produtos') renderProducts();
+            if (tabName === 'produtos') {
+                if (currentSession) {
+                    loadProductsForCurrentSession();
+                } else {
+                    renderProducts();
+                }
+            }
             if (tabName === 'contagem' && currentUser) loadActiveSessions();
         }
 
@@ -862,36 +878,8 @@
                     // Definir a sessão clicada como sessão atual
                     currentSession = session;
                     
-                    // Carregar produtos da sessão se for contagem normal
-                    if (session.count_type === 'normal') {
-                        let sessionProducts = [];
-                        let err = null;
-                        try {
-                            const res = await sb
-                                .from('products')
-                                .select('*')
-                                .eq('session_id', session.id);
-                            sessionProducts = res.data || [];
-                            err = res.error || null;
-                        } catch (e) {
-                            err = e;
-                        }
-                        if (err) {
-                            const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: session.id });
-                            sessionProducts = rpcProducts || [];
-                        }
-                        if (sessionProducts && sessionProducts.length > 0) {
-                            products = sessionProducts.map(p => ({
-                                id: p.id,
-                                codigo: p.codigo,
-                                descricao: p.descricao,
-                                quantidade_atual: p.quantidade_atual,
-                                quantidade_contada: p.quantidade_contada,
-                                is_counted: p.is_counted,
-                                scanned_qty: p.scanned_qty
-                            }));
-                        }
-                    }
+                    // Carregar produtos da sessão com função unificada
+                    await loadProductsForCurrentSession();
                     
                     // Mostrar/ocultar card de bipagens avulsas baseado no tipo
                     const avulsaCard = document.getElementById('avulsa-scans-card');
@@ -1186,6 +1174,31 @@
             });
         }
 
+        async function loadProductsForCurrentSession() {
+            if (!sb || !currentSession) {
+                renderProducts();
+                return;
+            }
+            let sessionProducts = [];
+            try {
+                const { data: rpcProducts } = await sb.rpc('get_products_for_empresa');
+                const allProducts = rpcProducts || [];
+                sessionProducts = allProducts.filter(p => String(p.session_id) === String(currentSession.id));
+            } catch (e) {
+                sessionProducts = [];
+            }
+            products = (sessionProducts || []).map(p => ({
+                id: p.id,
+                codigo: p.codigo,
+                descricao: p.descricao,
+                quantidade_atual: p.quantidade_atual,
+                quantidade_contada: p.quantidade_contada,
+                is_counted: p.is_counted,
+                scanned_qty: p.scanned_qty
+            }));
+            renderProducts();
+        }
+
 
 
         function showMessage(message, type) {
@@ -1225,33 +1238,7 @@
             }
             if (active && active.length > 0) {
                 currentSession = active[0];
-                let sessionProducts = [];
-                let err = null;
-                try {
-                    const res = await sb
-                        .from('products')
-                        .select('*')
-                        .eq('session_id', currentSession.id);
-                    sessionProducts = res.data || [];
-                    err = res.error || null;
-                } catch (e) {
-                    err = e;
-                }
-                if (err) {
-                    const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: currentSession.id });
-                    sessionProducts = rpcProducts || [];
-                }
-                if (sessionProducts && sessionProducts.length > 0) {
-                    products = sessionProducts.map(p => ({
-                        id: p.id,
-                        codigo: p.codigo,
-                        descricao: p.descricao,
-                        quantidade_atual: p.quantidade_atual,
-                        quantidade_contada: p.quantidade_contada,
-                        is_counted: p.is_counted,
-                        scanned_qty: p.scanned_qty
-                    }));
-                }
+                await loadProductsForCurrentSession();
                 if (currentSession.count_type === 'avulsa') {
                     document.getElementById('avulsa-scans-card').classList.remove('hidden');
                     let existingScans = [];

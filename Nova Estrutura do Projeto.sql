@@ -1030,3 +1030,49 @@ begin
 end;
 $$;
 grant execute on function public.update_product_counts(uuid, text, integer, integer, boolean) to authenticated;
+
+create or replace function public.search_products_for_empresa(
+  p_session_id uuid,
+  p_search text,
+  p_is_counted boolean
+)
+returns table (
+  id uuid,
+  codigo text,
+  descricao text,
+  localizacao text,
+  quantidade_atual integer,
+  quantidade_contada integer,
+  scanned_qty integer,
+  is_counted boolean,
+  expected_qty integer,
+  session_id uuid,
+  created_at timestamptz,
+  counting_session_name text
+)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  with me as (
+    select id_empresa
+    from public.user_tenants
+    where auth_user_id = auth.uid()
+    limit 1
+  )
+  select 
+    p.id, p.codigo, p.descricao, p.localizacao, p.quantidade_atual,
+    p.quantidade_contada, p.scanned_qty, p.is_counted, p.expected_qty,
+    p.session_id, p.created_at, cs.session_name as counting_session_name
+  from public.products p
+  join public.counting_sessions cs on cs.id = p.session_id
+  join me on me.id_empresa = cs.id_empresa
+  where (p_session_id is null or p.session_id = p_session_id)
+    and (p_search is null 
+         or p.codigo ilike '%'||p_search||'%'
+         or p.descricao ilike '%'||p_search||'%')
+    and (p_is_counted is null or p.is_counted = p_is_counted)
+  order by p.created_at desc
+$$;
+grant execute on function public.search_products_for_empresa(uuid, text, boolean) to authenticated;
