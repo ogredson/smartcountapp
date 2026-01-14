@@ -541,6 +541,7 @@
         let currentSession = null;
         let products = [];
         let activeSessions = [];
+        let authEmail = null;
 
         // =============================
         // Elementos
@@ -570,6 +571,7 @@
             try {
                 const { data: { session } } = await sb.auth.getSession();
                 if (session) {
+                    authEmail = session.user.email;
                     let { data: perfil } = await sb.rpc('get_usuario_perfil');
                     if (!perfil) {
                         const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', session.user.email).maybeSingle();
@@ -601,12 +603,17 @@
         }
         
         function updateUserInfo() {
-            if (currentCompany && currentUser) {
-                const companyName = currentCompany.nome || currentCompany.email || 'Empresa';
-                const userName = currentUser.nome || currentUser.email || 'Usuário';
-                userInfoElement.innerHTML = `Empresa: <span class="company-pill">${companyName}</span> • Usuário: <span class="user-pill">${userName}</span>`;
-                userInfoElement.classList.remove('hidden');
-            }
+            if (!userInfoElement) return;
+            const companyName = currentCompany ? (currentCompany.nome || currentCompany.email || 'Empresa') : 'Empresa';
+            const userName = (
+                currentUser && typeof currentUser.nome === 'string' && currentUser.nome.trim().length > 0
+                    ? currentUser.nome.trim()
+                    : (currentUser && typeof currentUser.email === 'string' && currentUser.email.trim().length > 0
+                        ? currentUser.email.trim()
+                        : (authEmail || 'Usuário'))
+            );
+            userInfoElement.innerHTML = `Empresa: <span class="company-pill">${companyName}</span> • Usuário: <span class="user-pill">${userName}</span>`;
+            userInfoElement.classList.remove('hidden');
         }
 
         function setupEventListeners() {
@@ -693,6 +700,7 @@
             try {
                 const { data, error } = await sb.auth.signInWithPassword({ email, password });
                 if (error) throw error;
+                authEmail = email;
                 let { data: perfil } = await sb.rpc('get_usuario_perfil');
                 if (!perfil) {
                     const { data: byEmail } = await sb.from('usuarios').select('*').eq('email', email).maybeSingle();
@@ -748,26 +756,24 @@
         async function loadActiveSessions() {
             if (!sb || !currentUser || !currentCompany) return;
             let sessions = [];
-            let error = null;
             try {
-                let q = sb
-                    .from('counting_sessions')
-                    .select('*')
-                    .eq('id_empresa', currentCompany.id)
-                    .eq('status', 'active')
-                    .order('created_at', { ascending: false });
-                if (currentUser && currentUser.role !== 'admin') {
-                    q = q.eq('id_usuario', currentUser.id);
-                }
-                const res = await q;
-                sessions = res.data || [];
-                error = res.error || null;
-            } catch (e) {
-                error = e;
-            }
-            if (error) {
                 const { data: sessionsRpc } = await sb.rpc('get_counting_sessions_for_current_user');
-                sessions = (sessionsRpc || []).filter(s => s.status === 'active' && (currentUser && currentUser.role !== 'admin' ? s.id_usuario === currentUser.id : true));
+                sessions = (sessionsRpc || []).filter(s => s.status === 'active' && (currentUser && currentUser.role !== 'admin' && currentUser.id ? s.id_usuario === currentUser.id : true) && s.id_empresa === currentCompany.id);
+                if (!sessions || sessions.length === 0) {
+                    let q = sb
+                        .from('counting_sessions')
+                        .select('*')
+                        .eq('id_empresa', currentCompany.id)
+                        .eq('status', 'active')
+                        .order('created_at', { ascending: false });
+                    if (currentUser && currentUser.role !== 'admin' && currentUser.id) {
+                        q = q.eq('id_usuario', currentUser.id);
+                    }
+                    const res = await q;
+                    sessions = res.data || [];
+                }
+            } catch (e) {
+                sessions = [];
             }
             activeSessions = sessions || [];
             renderActiveSessions();
@@ -930,10 +936,7 @@
             if (!confirm('Tem certeza que deseja finalizar esta sessão? Esta ação não pode ser desfeita.')) return;
             
             try {
-                const { error } = await sb
-                    .from('counting_sessions')
-                    .update({ status: 'completed', ended_at: new Date().toISOString() })
-                    .eq('id', currentSession.id);
+                const { error } = await sb.rpc('update_session_status', { p_session_id: currentSession.id, p_new_status: 'completed' });
                 
                 if (error) {
                     console.error('Erro ao finalizar sessão:', error);
@@ -1079,6 +1082,12 @@
             
             currentSession.counted_items = newCountedItems;
             currentSession.scanned_items = newScannedItems;
+            const idx = activeSessions.findIndex(s => s.id === currentSession.id);
+            if (idx >= 0) {
+                activeSessions[idx].counted_items = newCountedItems;
+                activeSessions[idx].scanned_items = newScannedItems;
+            }
+            renderActiveSessions();
             
             showMessage(`Produto ${codigo} (${productDescription}) adicionado com quantidade ${quantity}.`, 'success');
             barcodeInput.value = '';
@@ -1144,14 +1153,28 @@
         async function loadUserData() {
             if (!sb || !currentUser || !currentCompany) return;
             await loadActiveSessions();
-            const { data: active } = await sb
-                .from('counting_sessions')
-                .select('*')
-                .eq('id_empresa', currentCompany.id)
-                .eq('id_usuario', currentUser.id)
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-                .limit(1);
+            let active = [];
+            try {
+                const { data: sessionsRpc } = await sb.rpc('get_counting_sessions_for_current_user');
+                const filt = (sessionsRpc || []).filter(s => s.status === 'active' && (currentUser && currentUser.role !== 'admin' && currentUser.id ? s.id_usuario === currentUser.id : true) && s.id_empresa === currentCompany.id);
+                active = filt || [];
+                if (!active || active.length === 0) {
+                    let q = sb
+                        .from('counting_sessions')
+                        .select('*')
+                        .eq('id_empresa', currentCompany.id)
+                        .eq('status', 'active')
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    if (currentUser && currentUser.role !== 'admin' && currentUser.id) {
+                        q = q.eq('id_usuario', currentUser.id);
+                    }
+                    const res = await q;
+                    active = res.data || [];
+                }
+            } catch (e) {
+                active = [];
+            }
             if (active && active.length > 0) {
                 currentSession = active[0];
                 let sessionProducts = [];
