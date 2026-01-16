@@ -725,6 +725,7 @@
                     });
                 }
             }
+            updateScanControls();
         }
 
         async function handleLogin() {
@@ -877,6 +878,7 @@
                 card.addEventListener('click', async () => {
                     // Definir a sessão clicada como sessão atual
                     currentSession = session;
+                    updateScanControls();
                     
                     // Carregar produtos da sessão com função unificada
                     await loadProductsForCurrentSession();
@@ -940,6 +942,7 @@
                     if (barcodeInput) {
                         barcodeInput.focus();
                     }
+                    updateScanControls();
                 });
                 
                 sessionsList.appendChild(card);
@@ -973,6 +976,7 @@
                 if (endSessionBtn) {
                     endSessionBtn.classList.add('hidden');
                 }
+                updateScanControls();
                 
                 // Ocultar card de bipagens avulsas
                 const avulsaCard = document.getElementById('avulsa-scans-card');
@@ -1001,10 +1005,10 @@
         }
 
         async function addScan() {
-            if (!currentSession) return showMessage('Inicie uma contagem antes de escanear produtos.', 'error');
             if (!sb) return showMessage('Conexão com banco de dados indisponível.', 'error');
-            
-            
+            if (!currentSession || !currentSession.id || currentSession.status !== 'active') {
+                return showMessage('Selecione uma sessão ativa antes de bipar.', 'error');
+            }
             
             const barcodeInput = document.getElementById('barcode-input');
             const quantityInput = document.getElementById('quantity-input');
@@ -1174,6 +1178,16 @@
             });
         }
 
+        function updateScanControls() {
+            const addBtn = document.getElementById('add-scan-btn');
+            const barcodeInput = document.getElementById('barcode-input');
+            const quantityInput = document.getElementById('quantity-input');
+            const hasActive = !!(currentSession && currentSession.id && currentSession.status === 'active');
+            if (addBtn) addBtn.disabled = !hasActive;
+            if (barcodeInput) barcodeInput.disabled = !hasActive;
+            if (quantityInput) quantityInput.disabled = !hasActive;
+        }
+
         async function loadProductsForCurrentSession() {
             if (!sb || !currentSession) {
                 renderProducts();
@@ -1211,6 +1225,7 @@
 
 
 
+
         async function loadUserData() {
             if (!sb || !currentUser || !currentCompany) return;
             await loadActiveSessions();
@@ -1238,6 +1253,15 @@
             }
             if (active && active.length > 0) {
                 currentSession = active[0];
+                const sessionNameElement = document.getElementById('current-session-name');
+                const endSessionBtn = document.getElementById('end-session-btn');
+                if (sessionNameElement) {
+                    sessionNameElement.textContent = currentSession.session_name || 'Sessão sem nome';
+                }
+                if (endSessionBtn) {
+                    endSessionBtn.classList.remove('hidden');
+                }
+                updateScanControls();
                 await loadProductsForCurrentSession();
                 if (currentSession.count_type === 'avulsa') {
                     document.getElementById('avulsa-scans-card').classList.remove('hidden');
@@ -1286,6 +1310,15 @@
                 if (quantityInput) {
                     quantityInput.value = '1';
                 }
+                const sessionNameElement = document.getElementById('current-session-name');
+                const endSessionBtn = document.getElementById('end-session-btn');
+                if (sessionNameElement) {
+                    sessionNameElement.textContent = 'Nenhuma sessão selecionada';
+                }
+                if (endSessionBtn) {
+                    endSessionBtn.classList.add('hidden');
+                }
+                updateScanControls();
             }
         }
     </script>
