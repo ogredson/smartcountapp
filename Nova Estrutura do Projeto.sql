@@ -536,7 +536,11 @@ as $$
   where t.role = 'admin' or cs.id_usuario = t.id_usuario
   order by cs.created_at desc
 $$;
-grant execute on function public.get_counting_sessions_for_current_user() to authenticated;
+grant execute on function public.update_session_file_info(uuid, text, text) to authenticated;
+
+-- Drop old signatures to avoid ambiguity
+drop function if exists public.get_products_for_empresa(uuid);
+drop function if exists public.get_products_for_empresa(uuid, text, boolean);
 
 create or replace function public.get_products_for_empresa(
   p_session_id uuid default null,

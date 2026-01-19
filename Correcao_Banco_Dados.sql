@@ -77,6 +77,10 @@ set id_usuario = excluded.id_usuario,
     role = excluded.role;
 
 -- 5. Garantir que a função get_products_for_empresa está correta (correção do bug de self-reference)
+-- Primeiro, removemos TODAS as assinaturas possíveis para evitar erro de ambiguidade "Could not choose the best candidate function"
+drop function if exists public.get_products_for_empresa(uuid);
+drop function if exists public.get_products_for_empresa(uuid, text, boolean);
+
 create or replace function public.get_products_for_empresa(
   p_session_id uuid default null,
   p_search text default null,
