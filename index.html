@@ -1195,9 +1195,14 @@
             }
             let sessionProducts = [];
             try {
-                const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: currentSession.id });
+                const { data: rpcProducts, error: rpcError } = await sb.rpc('get_products_for_empresa', { p_session_id: currentSession.id });
+                if (rpcError) {
+                    console.error('Erro ao buscar produtos:', rpcError);
+                    showMessage('Erro ao carregar produtos: ' + rpcError.message, 'error');
+                }
                 sessionProducts = rpcProducts || [];
             } catch (e) {
+                console.error('Exceção ao buscar produtos:', e);
                 sessionProducts = [];
             }
             products = (sessionProducts || []).map(p => ({
