@@ -1195,9 +1195,8 @@
             }
             let sessionProducts = [];
             try {
-                const { data: rpcProducts } = await sb.rpc('get_products_for_empresa');
-                const allProducts = rpcProducts || [];
-                sessionProducts = allProducts.filter(p => String(p.session_id) === String(currentSession.id));
+                const { data: rpcProducts } = await sb.rpc('get_products_for_empresa', { p_session_id: currentSession.id });
+                sessionProducts = rpcProducts || [];
             } catch (e) {
                 sessionProducts = [];
             }
