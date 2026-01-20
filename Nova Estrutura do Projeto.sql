@@ -692,9 +692,22 @@ as $$
     where cs.id = p_session_id
     limit 1
   ),
+  prod as (
+    select id
+    from public.products
+    where session_id = p_session_id
+      and codigo = p_code
+    limit 1
+  ),
   ins as (
-    insert into public.scans (session_id, code, quantity, description)
-    select p_session_id, p_code, coalesce(p_quantity, 1), nullif(p_description,'')
+    insert into public.scans (session_id, code, codigo, product_id, quantity, description)
+    select 
+      p_session_id, 
+      p_code, 
+      p_code, 
+      (select id from prod),
+      coalesce(p_quantity, 1), 
+      nullif(p_description,'')
     from sess
     returning *
   )
